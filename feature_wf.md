@@ -537,6 +537,54 @@ npm run dev
 npm run test:features
 ```
 
+---
+
+## 🔄 **MANDATORY: Git Commit & Push After Feature Completion**
+
+### ⚠️ CRITICAL WORKFLOW STEP
+
+**BEFORE** moving to the next feature, **ALWAYS** commit and push the completed feature to GitHub:
+
+```bash
+# 1. Stage all changes
+git add .
+
+# 2. Create descriptive commit with template
+git commit -m "$(cat <<'EOF'
+Complete Feature X.Y: [Feature Name]
+
+- [Key implementation detail 1]
+- [Key implementation detail 2] 
+- [Key implementation detail 3]
+- Updated documentation and progress tracking
+- All tests passing, feature ready for production
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)"
+
+# 3. Push to GitHub repository
+git push origin main
+```
+
+### Why This Step Is Critical:
+- **Backup Protection**: Ensures all work is safely stored on GitHub
+- **Version Control**: Creates clear feature boundaries in git history
+- **Collaboration**: Enables team members to access latest changes
+- **CI/CD Integration**: Triggers automated testing and deployment pipelines
+- **Rollback Safety**: Provides restore points if issues arise
+
+### ❌ Never Skip This Step:
+- **DO NOT** start the next feature without committing current work
+- **DO NOT** batch multiple features into one commit
+- **DO NOT** forget to push to the remote repository
+
+### Repository Information:
+- **GitHub Repository**: https://github.com/PedroZabeu/betlink
+- **Default Branch**: main
+
 ## 📝 Important Notes
 
 1. **Import pattern** defined in `.eslintrc`

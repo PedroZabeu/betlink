@@ -31,6 +31,7 @@ BetLink is an **active development project**. The codebase is organized with a c
 - **context7**: Context management and project understanding
 - **supabase**: Direct Supabase integration and management
 - **playwright**: Automated testing and browser automation
+- **github-server**: GitHub repository management and API integration
 
 ### Database Schema
 The complete database schema is defined in `.planning/db_schema.txt` with:
@@ -175,7 +176,11 @@ When implementing features, **ALWAYS** follow this protocol:
 2. Create: betlink/docs/features/handover/to-feature-X-Y+1.md
 3. Update: betlink/docs/project-master-plan.md (mark complete)
 4. Update: betlink/docs/epics/epic-X-name/progress.md
-5. Notify human of feature completion
+5. **MANDATORY: Create git commit and push to GitHub**
+   - Run git add, git commit with descriptive message
+   - Push changes to GitHub repository
+   - Ensure all feature work is backed up before moving to next feature
+6. Notify human of feature completion
 ```
 
 ### Human Notification Protocol
@@ -216,6 +221,46 @@ Every feature implementation must result in:
 - Learning documentation in `betlink/docs/features/learnings/`
 - Handover documentation in `betlink/docs/features/handover/`
 - Epic progress updates in `betlink/docs/epics/epic-X-name/progress.md`
+
+## Git Workflow Protocol
+
+### Repository Information
+- **GitHub Repository**: https://github.com/PedroZabeu/betlink
+- **Default Branch**: main
+- **MCP Integration**: GitHub MCP server configured for repository operations
+
+### Mandatory Git Operations
+
+#### After Each Feature Completion:
+```bash
+# 1. Stage all changes
+git add .
+
+# 2. Create descriptive commit message
+git commit -m "$(cat <<'EOF'
+Complete Feature X.Y: [Feature Name]
+
+- [Key implementation detail 1]
+- [Key implementation detail 2]
+- [Key implementation detail 3]
+- Updated documentation and progress tracking
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)"
+
+# 3. Push to GitHub
+git push origin main
+```
+
+#### Critical Git Rules:
+- **NEVER** move to the next feature without committing current work
+- **ALWAYS** push to GitHub after feature completion
+- **ALWAYS** include documentation updates in the commit
+- **ALWAYS** use descriptive commit messages following the template above
+- Create commits for major milestones within features if implementation is complex
 
 ## Important Notes
 
