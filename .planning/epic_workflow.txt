@@ -1,0 +1,354 @@
+# BetLink - Workflow de EPICs
+
+## 📚 O que é um EPIC?
+
+Um EPIC é um conjunto coeso de features que entregam uma capacidade completa do sistema. Cada EPIC tem um objetivo de negócio claro e é composto por features que, juntas, permitem que usuários realizem uma jornada completa.
+
+**Exemplo**: O EPIC "Sistema de Autenticação" inclui as features: Setup inicial, Tela de login, Tela de registro, Proteção de rotas, e Gestão de sessão.
+
+---
+
+## 🎯 Workflow do EPIC
+
+### **1️⃣ DEFINIÇÃO DO EPIC**
+
+```markdown
+# EPIC: [Nome do EPIC]
+
+## Objetivo de Negócio
+[O que este EPIC permite que os usuários façam?]
+
+## Critério de Sucesso
+[Como sabemos que o EPIC está completo e funcionando?]
+
+## Features Incluídas
+1. Feature A: [Nome] - [Objetivo]
+2. Feature B: [Nome] - [Objetivo]
+3. Feature C: [Nome] - [Objetivo]
+...
+
+## Dependências Entre Features
+```mermaid
+graph LR
+    A[Feature A] --> B[Feature B]
+    A --> C[Feature C]
+    B --> D[Feature D]
+    C --> D
+```
+
+## Riscos e Mitigações
+| Risco | Impacto | Mitigação |
+|-------|---------|-----------|
+| [Risco 1] | Alto/Médio/Baixo | [Como prevenir] |
+
+## Estimativa Total
+- **Features**: X
+- **Tempo estimado**: Y dias
+- **Complexidade**: Baixa/Média/Alta
+```
+
+### **2️⃣ SEQUENCIAMENTO DE FEATURES**
+
+```markdown
+## Ordem de Implementação - EPIC: [Nome]
+
+### Fase 1: Fundação
+- [ ] Feature 1.1: [Nome] - Sem dependências
+- [ ] Feature 1.2: [Nome] - Sem dependências
+
+### Fase 2: Core
+- [ ] Feature 2.1: [Nome] - Depende de 1.1
+- [ ] Feature 2.2: [Nome] - Depende de 1.1 e 1.2
+
+### Fase 3: Refinamento
+- [ ] Feature 3.1: [Nome] - Depende de todas anteriores
+
+## Checkpoints
+- **Checkpoint 1** (após Fase 1): [O que deve estar funcionando]
+- **Checkpoint 2** (após Fase 2): [O que deve estar funcionando]
+- **Final** (após Fase 3): [EPIC completo]
+```
+
+### **3️⃣ TESTE DE INTEGRAÇÃO DO EPIC**
+
+Diferente dos testes isolados de features, o teste do EPIC valida a jornada completa:
+
+```markdown
+## Teste E2E do EPIC: [Nome]
+
+### Cenário Principal
+**Como**: [Tipo de usuário]
+**Quero**: [Ação principal]
+**Para**: [Benefício]
+
+### Jornada de Teste
+1. [Passo 1 - Feature A]
+2. [Passo 2 - Feature B]
+3. [Passo 3 - Feature C]
+...
+N. [Validação final]
+
+### Critérios de Aceitação
+- [ ] Jornada completa sem erros
+- [ ] Tempo total < X segundos
+- [ ] Dados persistidos corretamente
+- [ ] Estados consistentes
+```
+
+### **4️⃣ DOCUMENTAÇÃO DO EPIC**
+
+```markdown
+## Resumo do EPIC: [Nome]
+
+### O que foi entregue
+- ✅ [Capacidade 1]
+- ✅ [Capacidade 2]
+- ✅ [Capacidade 3]
+
+### Como usar
+[Breve guia para desenvolvedores sobre as novas capacidades]
+
+### APIs/Interfaces criadas
+- `POST /api/[endpoint]` - [Descrição]
+- Hook `use[Nome]` - [Descrição]
+- Componente `<[Nome] />` - [Descrição]
+
+### Decisões arquiteturais
+[Principais decisões que afetam o sistema como um todo]
+
+### Débito técnico identificado
+[O que pode ser melhorado no futuro]
+```
+
+---
+
+## 📊 Exemplo Prático: EPIC Sistema de Autenticação
+
+### Definição
+```markdown
+# EPIC: Sistema de Autenticação
+
+## Objetivo de Negócio
+Permitir que usuários criem contas, façam login e acessem áreas protegidas de acordo com suas permissões (cliente/tipster/admin/master).
+
+## Critério de Sucesso
+- Usuários conseguem criar conta e fazer login
+- Rotas são protegidas por role
+- Sessão persiste entre recarregamentos
+- Logout funciona corretamente
+
+## Features Incluídas
+1. Feature 1: Setup Supabase Auth - Configurar autenticação
+2. Feature 2: Tela de Login - Interface de entrada
+3. Feature 3: Tela de Registro - Criar nova conta
+4. Feature 4: Middleware de Proteção - Proteger rotas
+5. Feature 5: Gestão de Sessão - Manter usuário logado
+
+## Dependências Entre Features
+Setup → Login/Registro → Middleware → Sessão
+```
+
+---
+
+## 🔄 Relação EPIC ↔ Feature
+
+### O EPIC **NÃO** repete do workflow de Feature:
+- ❌ Detalhes de implementação
+- ❌ Testes unitários
+- ❌ Logs específicos
+- ❌ Refinamentos individuais
+
+### O EPIC **ADICIONA**:
+- ✅ Visão macro do objetivo
+- ✅ Ordem estratégica de features
+- ✅ Testes de integração entre features
+- ✅ Documentação consolidada
+- ✅ Checkpoints de validação
+
+---
+
+## 📈 Monitoramento do EPIC
+
+### Dashboard de Progresso
+```markdown
+## EPIC: [Nome] - Status
+
+### Progresso Geral: ▓▓▓▓▓▓▓░░░ 70%
+
+### Por Feature
+- ✅ Feature 1: Setup - 100%
+- ✅ Feature 2: Login - 100%
+- 🚧 Feature 3: Registro - 60%
+- ⏳ Feature 4: Middleware - 0%
+- ⏳ Feature 5: Sessão - 0%
+
+### Velocidade
+- **Planejado**: 5 dias
+- **Decorrido**: 3 dias
+- **Estimativa final**: 6 dias (+1)
+
+### Bloqueios
+- 🔴 [Bloqueio crítico se houver]
+- 🟡 [Impedimento parcial se houver]
+```
+
+---
+
+## 🔄 Pontos de Reavaliação do EPIC
+
+### Checkpoints Obrigatórios para Revisão
+
+#### **1. Após Setup Inicial (10% do EPIC)**
+```markdown
+## Checkpoint: Infraestrutura Base
+
+### Revisar:
+- [ ] Mocks/placeholders necessários estão criados?
+- [ ] Estrutura de dados atende as próximas features?
+- [ ] Alguma feature precisa ser adicionada/removida?
+- [ ] Ordem das features ainda faz sentido?
+
+### Decisão:
+- ⚡ Continuar como planejado
+- 🔄 Ajustar lista de features
+- ➕ Adicionar feature de suporte
+- ➖ Remover feature desnecessária
+```
+
+#### **2. No Meio do EPIC (50%)**
+```markdown
+## Checkpoint: Validação de Progresso
+
+### Perguntas para IA avaliar:
+1. As features implementadas revelaram novos requisitos?
+2. Alguma integração precisa de mock adicional?
+3. A complexidade está maior/menor que esperado?
+4. Precisamos de features auxiliares?
+
+### Ações possíveis:
+- Criar tabelas/dados mock para testes
+- Reordenar features restantes
+- Simplificar ou expandir escopo
+- Documentar mudanças necessárias
+```
+
+#### **3. Antes da Última Feature (90%)**
+```markdown
+## Checkpoint: Preparação para Conclusão
+
+### Validar:
+- Todas as integrações estão testáveis?
+- Mocks podem ser removidos?
+- Features cobrem o objetivo do EPIC?
+- Algo ficou de fora?
+```
+
+### 🤖 Protocolo de Reavaliação da IA
+
+```markdown
+## Quando a IA deve sugerir mudanças:
+
+1. **Descoberta de Dependência**
+   "Percebi que Feature X precisa da tabela Y que não existe. 
+   Sugiro adicionar Feature 0.5: Criar Mock Data para Y"
+
+2. **Complexidade Inesperada**
+   "Feature X é mais complexa que previsto.
+   Sugiro dividir em X.1, X.2, X.3"
+
+3. **Oportunidade de Simplificação**
+   "Features X e Y podem ser combinadas usando componente Z.
+   Sugiro unificar em uma única feature"
+
+4. **Necessidade de Infraestrutura**
+   "Para testar Feature X precisamos de:
+   - Mock do Stripe webhook
+   - Dados fake de assinaturas
+   Sugiro criar Feature auxiliar"
+```
+
+## 🎯 Quando um EPIC está completo?
+
+### Checklist de Conclusão
+
+1. **Todas as features implementadas** ✓
+2. **Teste E2E do EPIC passando** ✓
+3. **Documentação consolidada** ✓
+4. **Code review geral** ✓
+5. **Débito técnico documentado** ✓
+6. **Handover para próximo EPIC** ✓
+7. **Mocks removidos ou documentados** ✓
+
+### Entregáveis Finais
+
+```
+epic-[nome]/
+├── README.md           # Resumo do que foi entregue
+├── CHANGELOG.md        # Mudanças introduzidas
+├── API.md              # Documentação de APIs
+├── DECISIONS.md        # Decisões arquiteturais
+└── NEXT-STEPS.md       # Sugestões para evolução
+```
+
+---
+
+## 🚀 Transição entre EPICs
+
+### Handover de EPIC
+```markdown
+# Handover: EPIC [Atual] → EPIC [Próximo]
+
+## Sistema após este EPIC
+[Estado geral do sistema]
+
+## Novas capacidades disponíveis
+- [Capacidade 1]: Como usar
+- [Capacidade 2]: Como usar
+
+## Pontos de integração
+[Onde o próximo EPIC vai se conectar]
+
+## Cuidados especiais
+[O que o próximo EPIC deve tomar cuidado]
+
+## Sugestões
+[Melhorias identificadas durante implementação]
+```
+
+---
+
+## 📋 Templates de EPICs do BetLink
+
+### EPIC 1: Fundação e Autenticação
+**Features**: Setup, Auth, Layouts, Proteção de rotas
+**Entrega**: Sistema base com login funcionando
+
+### EPIC 2: Área Pública
+**Features**: Landing, Lista canais, Página canal, Blog
+**Entrega**: Visitantes podem descobrir canais
+
+### EPIC 3: Gestão de Canais
+**Features**: Dashboard tipster, Solicitações, Gestão clientes
+**Entrega**: Tipsters gerenciam seus negócios
+
+### EPIC 4: Sistema Administrativo
+**Features**: Dashboard admin, CRUD tipsters, Aprovações
+**Entrega**: Admins controlam a plataforma
+
+### EPIC 5: Pagamentos
+**Features**: Stripe Connect, Checkout, Assinaturas
+**Entrega**: Monetização funcionando
+
+### EPIC 6: Integração Telegram
+**Features**: Bot, Webhooks, Sincronização
+**Entrega**: Automação completa
+
+---
+
+## ⚡ Vantagens do Workflow de EPIC
+
+1. **Visão clara**: Todos sabem o objetivo maior
+2. **Priorização**: Features na ordem correta
+3. **Validação incremental**: Checkpoints garantem qualidade
+4. **Menos retrabalho**: Dependências mapeadas
+5. **Documentação natural**: Conhecimento consolidado

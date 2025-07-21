@@ -1,0 +1,537 @@
+# BetLink - EPICs Implementation Checklist
+
+## 📋 Status Legend
+- ⬜ **Pending**: Not started
+- 🟦 **In Progress**: Currently working
+- ✅ **Done**: Completed and tested
+- ❌ **Blocked**: Has dependencies or issues
+- 🔄 **Revised**: Modified from original plan
+- 🧪 **Mock**: Temporary implementation for testing
+
+---
+
+## 🎨 Mock Data & Placeholders Tracking
+
+### Active Mocks:
+```markdown
+<!-- IA atualiza esta seção conforme cria/remove mocks -->
+- [ ] Mock Stripe webhooks (needed for EPIC 5)
+- [ ] Mock Telegram bot responses (needed for EPIC 6)
+- [ ] Seed data for channels (10 fake channels)
+- [ ] Test users for each role (admin, tipster, client)
+```
+
+---
+
+## 🎯 EPIC 1: Foundation and Authentication
+
+### Status: ⬜ Pending
+### Start Date: -
+### End Date: -
+
+#### 🔄 Checkpoint 1: After Setup (Feature 1.1)
+```markdown
+<!-- IA preenche após completar setup -->
+- [ ] Infrastructure supports planned features?
+- [ ] Need additional mock data?
+- [ ] Feature list still accurate?
+- [ ] Any new dependencies discovered?
+
+**Decision**: [ ] Continue as planned | [ ] Revise features
+**Notes**: 
+```
+
+#### Features Checklist:
+
+```markdown
+- [ ] Feature 1.1: Initial Setup
+  - [ ] Create Next.js project with TypeScript
+  - [ ] Install and configure Tailwind CSS
+  - [ ] Setup Supabase project
+  - [ ] Configure environment variables
+  - [ ] Install shadcn/ui
+  - [ ] Create folder structure
+  - [ ] 🧪 Create mock users for testing
+  - [ ] Test: "Hello BetLink" with styled component
+
+- [ ] Feature 1.2: Database Schema
+  - [ ] Create profiles table with RLS
+  - [ ] Create user_role enum
+  - [ ] Create user_status enum
+  - [ ] Setup foreign keys
+  - [ ] Enable Row Level Security
+  - [ ] 🧪 Seed test data (1 of each role)
+  - [ ] Test: Insert test user via Supabase dashboard
+
+#### 🔄 Checkpoint 2: Mid-EPIC Review (After Feature 1.4)
+```markdown
+<!-- IA avalia progresso -->
+- [ ] Auth flow working as expected?
+- [ ] Need to adjust remaining features?
+- [ ] Any integration issues found?
+- [ ] Mocks adequate for testing?
+
+**IA Suggestions**:
+<!-- IA pode adicionar sugestões aqui -->
+
+**Human Decision**: [ ] Accept suggestions | [ ] Modify | [ ] Continue original
+```
+
+- [ ] Feature 1.3: Login Page
+  - [ ] Create /login route
+  - [ ] Design login form with shadcn/ui
+  - [ ] Implement email/password validation
+  - [ ] Connect to Supabase Auth
+  - [ ] Handle login errors
+  - [ ] 🧪 Mock successful/failed login for tests
+  - [ ] Test: Login with valid/invalid credentials
+
+- [ ] Feature 1.4: Register Page
+  - [ ] Create /register route
+  - [ ] Design registration form
+  - [ ] Add Telegram username field
+  - [ ] Implement form validation
+  - [ ] Create profile on signup
+  - [ ] Send confirmation email (🧪 mock in dev)
+  - [ ] Test: Complete registration flow
+
+- [ ] Feature 1.5: Route Protection
+  - [ ] Create middleware.ts
+  - [ ] Implement role-based redirects
+  - [ ] Protect /dashboard routes
+  - [ ] Protect /admin routes
+  - [ ] Protect /meus-canais routes
+  - [ ] Test: Access control for each role
+
+- [ ] Feature 1.6: Layouts by Role
+  - [ ] Create public header component
+  - [ ] Create admin header component
+  - [ ] Create tipster header component
+  - [ ] Create client header component
+  - [ ] Implement conditional rendering
+  - [ ] Test: Correct header for each role
+
+- [ ] Feature 1.7: Tipster Login
+  - [ ] Create /tipster/login route
+  - [ ] Separate login interface
+  - [ ] Force password change on first login
+  - [ ] Connect to separate auth flow
+  - [ ] Test: Tipster login with temp password
+
+#### 🔄 Checkpoint 3: EPIC Completion Review
+```markdown
+<!-- Final review before moving to next EPIC -->
+- [ ] All core auth features working?
+- [ ] Mocks documented for next EPIC?
+- [ ] Any technical debt to note?
+- [ ] Features to add to next EPICs?
+
+**Mocks to Keep**:
+<!-- List mocks needed for other EPICs -->
+
+**Mocks to Remove**:
+<!-- List temporary mocks to clean up -->
+```
+```
+
+---
+
+## 🎯 EPIC 2: Channel Discovery (Public Area)
+
+### Status: ⬜ Pending
+### Dependencies: EPIC 1
+### Start Date: -
+### End Date: -
+
+#### Features Checklist:
+
+```markdown
+- [ ] Feature 2.1: Landing Page
+  - [ ] Create home page layout
+  - [ ] Design hero section
+  - [ ] Add "How it works" section
+  - [ ] Create featured channels grid
+  - [ ] Add platform statistics
+  - [ ] Implement CTA buttons
+  - [ ] Test: All sections rendering correctly
+
+- [ ] Feature 2.2: Channels List Page
+  - [ ] Create /canais route
+  - [ ] Design channel card component
+  - [ ] Implement grid layout
+  - [ ] Add loading states
+  - [ ] Add empty states
+  - [ ] Connect to Supabase
+  - [ ] Test: Display mock channels data
+
+- [ ] Feature 2.3: Filters and Search
+  - [ ] Create filter sidebar
+  - [ ] Add price range filter
+  - [ ] Add ROI filter
+  - [ ] Add status filter
+  - [ ] Implement real-time filtering
+  - [ ] Add search functionality
+  - [ ] Test: Filters update results
+
+- [ ] Feature 2.4: Individual Channel Page
+  - [ ] Create /canal/[id] route
+  - [ ] Design channel header
+  - [ ] Add metrics display
+  - [ ] Add description section
+  - [ ] Add CTA for subscription
+  - [ ] Handle loading/error states
+  - [ ] Test: Navigate to channel details
+
+- [ ] Feature 2.5: Auth Integration
+  - [ ] Add login prompt for non-users
+  - [ ] Implement auth modals
+  - [ ] Handle post-login redirect
+  - [ ] Show user-specific CTAs
+  - [ ] Test: Auth flow from channel page
+```
+
+---
+
+## 🎯 EPIC 3: Tipster Central
+
+### Status: ⬜ Pending
+### Dependencies: EPIC 1
+### Start Date: -
+### End Date: -
+
+#### Features Checklist:
+
+```markdown
+- [ ] Feature 3.1: Tipster Dashboard
+  - [ ] Create /meus-canais route
+  - [ ] Design channel grid cards
+  - [ ] Add metrics to cards
+  - [ ] Implement channel status badges
+  - [ ] Add "Request Channel" button
+  - [ ] Make cards clickable
+  - [ ] Test: Display tipster's channels
+
+- [ ] Feature 3.2: Request Channel Modal
+  - [ ] Create modal component
+  - [ ] Design multi-field form
+  - [ ] Add Telegram username validation
+  - [ ] Implement price limits
+  - [ ] Add justification field
+  - [ ] Submit to database
+  - [ ] Test: Submit channel request
+
+- [ ] Feature 3.3: Requests Page
+  - [ ] Create /minhas-solicitacoes route
+  - [ ] Design requests table
+  - [ ] Show request status
+  - [ ] Display admin feedback
+  - [ ] Add status badges
+  - [ ] Enable editing rejected requests
+  - [ ] Test: View request history
+
+- [ ] Feature 3.4: Client Management
+  - [ ] Create /[canal]/clientes route
+  - [ ] Design metrics cards
+  - [ ] Create clients table
+  - [ ] Add search functionality
+  - [ ] Show subscription status
+  - [ ] Add date filters
+  - [ ] Test: View channel subscribers
+
+- [ ] Feature 3.5: Channel Metrics
+  - [ ] Add revenue card
+  - [ ] Add subscribers card
+  - [ ] Add waiting list card
+  - [ ] Create growth chart
+  - [ ] Calculate churn rate
+  - [ ] Test: Metrics calculate correctly
+```
+
+---
+
+## 🎯 EPIC 4: Administrative Panel
+
+### Status: ⬜ Pending
+### Dependencies: EPIC 1, EPIC 3
+### Start Date: -
+### End Date: -
+
+#### Features Checklist:
+
+```markdown
+- [ ] Feature 4.1: Admin Dashboard
+  - [ ] Create /admin/dashboard route
+  - [ ] Design KPI cards
+  - [ ] Add activity feed
+  - [ ] Create growth charts
+  - [ ] Add alerts section
+  - [ ] Implement date filters
+  - [ ] Test: Dashboard loads with data
+
+- [ ] Feature 4.2: Tipster Management
+  - [ ] Create /admin/tipsters route
+  - [ ] Design tipsters table
+  - [ ] Add create tipster modal
+  - [ ] Implement email sending
+  - [ ] Add status management
+  - [ ] Create tipster profiles
+  - [ ] Test: CRUD operations work
+
+- [ ] Feature 4.3: Channel Approval
+  - [ ] Create /admin/solicitacoes route
+  - [ ] Design approval interface
+  - [ ] Add review modal
+  - [ ] Implement approve/reject
+  - [ ] Add feedback system
+  - [ ] Update request status
+  - [ ] Test: Approval workflow
+
+- [ ] Feature 4.4: Automatic Channel Creation
+  - [ ] Setup Telegram bot
+  - [ ] Implement channel creation API
+  - [ ] Add bot as admin automatically
+  - [ ] Save channel IDs
+  - [ ] Send confirmation emails
+  - [ ] Test: Channel created on approval
+
+- [ ] Feature 4.5: Client Management
+  - [ ] Create /admin/clientes route
+  - [ ] Design clients table
+  - [ ] Add filters and search
+  - [ ] Show subscription history
+  - [ ] Add export functionality
+  - [ ] Test: View all platform clients
+```
+
+---
+
+## 🎯 EPIC 5: Payment System
+
+### Status: ⬜ Pending
+### Dependencies: EPIC 1, EPIC 2, EPIC 4
+### Start Date: -
+### End Date: -
+
+#### Features Checklist:
+
+```markdown
+- [ ] Feature 5.1: Stripe Connect Onboarding
+  - [ ] Create onboarding flow
+  - [ ] Design onboarding UI
+  - [ ] Implement account creation
+  - [ ] Handle OAuth redirect
+  - [ ] Save account details
+  - [ ] Show account status
+  - [ ] Test: Complete onboarding
+
+- [ ] Feature 5.2: Checkout Page
+  - [ ] Create checkout route
+  - [ ] Design payment form
+  - [ ] Add card input (Stripe Elements)
+  - [ ] Add PIX option
+  - [ ] Show channel summary
+  - [ ] Calculate fees
+  - [ ] Test: Process test payment
+
+- [ ] Feature 5.3: Payment Processing
+  - [ ] Setup webhook endpoint
+  - [ ] Handle payment success
+  - [ ] Handle payment failure
+  - [ ] Create subscription record
+  - [ ] Trigger Telegram access
+  - [ ] Send confirmation emails
+  - [ ] Test: End-to-end payment
+
+- [ ] Feature 5.4: Subscription Management
+  - [ ] Create subscription table
+  - [ ] Add to client dashboard
+  - [ ] Show payment history
+  - [ ] Enable cancellation
+  - [ ] Handle renewals
+  - [ ] Manage payment methods
+  - [ ] Test: Cancel/renew flow
+
+- [ ] Feature 5.5: Financial Dashboard
+  - [ ] Add to tipster dashboard
+  - [ ] Show revenue metrics
+  - [ ] Display payout schedule
+  - [ ] Show transaction history
+  - [ ] Add export features
+  - [ ] Test: Calculations accurate
+```
+
+---
+
+## 🎯 EPIC 6: Telegram Automation
+
+### Status: ⬜ Pending
+### Dependencies: All previous EPICs
+### Start Date: -
+### End Date: -
+
+#### Features Checklist:
+
+```markdown
+- [ ] Feature 6.1: Member Management Bot
+  - [ ] Configure Telegram bot
+  - [ ] Implement add member function
+  - [ ] Implement remove member function
+  - [ ] Handle member events
+  - [ ] Create webhook handlers
+  - [ ] Test: Auto add/remove members
+
+- [ ] Feature 6.2: Bet Reception Webhook
+  - [ ] Setup message webhook
+  - [ ] Parse bet template
+  - [ ] Validate tipster identity
+  - [ ] Save to database
+  - [ ] Send confirmation
+  - [ ] Test: Receive bet from Telegram
+
+- [ ] Feature 6.3: Betting System
+  - [ ] Create /[canal]/apostas route
+  - [ ] Design bets table
+  - [ ] Add status selector
+  - [ ] Show calculated profit
+  - [ ] Add period filters
+  - [ ] Create summary cards
+  - [ ] Test: View and update bets
+
+- [ ] Feature 6.4: Automatic Calculations
+  - [ ] Create profit triggers
+  - [ ] Calculate ROI
+  - [ ] Update channel stats
+  - [ ] Cache calculations
+  - [ ] Handle edge cases
+  - [ ] Test: Metrics update correctly
+
+- [ ] Feature 6.5: Result Notifications
+  - [ ] Detect status changes
+  - [ ] Format result message
+  - [ ] Send to Telegram channel
+  - [ ] Log notifications
+  - [ ] Handle failures
+  - [ ] Test: Results post to channel
+```
+
+---
+
+## 📊 Progress Tracking
+
+### Overall Progress: 0/35 Features (0%)
+
+```
+EPIC 1: ⬜ 0/7 features (0%)
+EPIC 2: ⬜ 0/5 features (0%)
+EPIC 3: ⬜ 0/5 features (0%)
+EPIC 4: ⬜ 0/5 features (0%)
+EPIC 5: ⬜ 0/5 features (0%)
+EPIC 6: ⬜ 0/5 features (0%)
+```
+
+---
+
+## 🔄 How to Update Status
+
+### For Claude Code:
+
+1. **Starting a Feature**:
+   ```markdown
+   - [ ] → - [🟦] Feature name (mark as In Progress)
+   Update EPIC status to 🟦 In Progress
+   ```
+
+2. **Completing a Feature**:
+   ```markdown
+   - [🟦] → - [✅] Feature name (mark as Done)
+   If all features done, update EPIC status to ✅ Done
+   ```
+
+3. **Blocking Issues**:
+   ```markdown
+   - [🟦] → - [❌] Feature name (mark as Blocked)
+   Add comment: "BLOCKED: [reason]"
+   ```
+
+4. **Creating Mocks**:
+   ```markdown
+   - Add to "Active Mocks" section
+   - Mark with 🧪 in feature list
+   - Document purpose and when to remove
+   ```
+
+5. **Suggesting Changes**:
+   ```markdown
+   ## 🤖 IA Suggestion:
+   **Context**: [What prompted this suggestion]
+   **Current Issue**: [Problem found]
+   **Proposed Change**: [Specific modification]
+   **Impact**: [What this affects]
+   
+   **Options**:
+   1. Add Feature X.X: [Description]
+   2. Modify Feature Y.Y: [Changes]
+   3. Remove Feature Z.Z: [Reason]
+   
+   ⏸️ Awaiting human decision...
+   ```
+
+### Daily Status Update Template:
+
+```markdown
+## Status Update - [Date]
+
+### Completed Today:
+- ✅ Feature X.X: [Name]
+- ✅ Feature X.X: [Name]
+
+### In Progress:
+- 🟦 Feature X.X: [Name] (70% complete)
+
+### Mocks Created:
+- 🧪 Mock Stripe webhook for payment tests
+- 🧪 Seed data: 10 test channels
+
+### Blocked:
+- ❌ Feature X.X: [Reason]
+
+### Discoveries & Suggestions:
+<!-- IA documents findings and suggestions -->
+
+### Next Steps:
+- Start Feature X.X
+- Unblock Feature X.X
+- Review suggestion about Y.Y
+
+### Notes:
+[Any important observations]
+```
+
+---
+
+## 🎯 Success Metrics
+
+### Per EPIC:
+- All features marked as ✅ Done
+- All tests passing
+- No ❌ Blocked items
+- Documentation updated
+
+### Per Feature:
+- Code implemented
+- Tests written
+- Human test passed
+- No regressions
+
+---
+
+## 📝 Notes Section
+
+### Important Decisions:
+<!-- Claude Code can add decisions here -->
+
+### Technical Debt:
+<!-- Track items to refactor later -->
+
+### Learnings:
+<!-- Document important discoveries -->

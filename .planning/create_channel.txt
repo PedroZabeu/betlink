@@ -1,0 +1,836 @@
+# BetLink - Sistema de Criação de Canais
+
+## 📱 Visão Geral
+
+O sistema permite duas formas de criar canais no BetLink:
+1. **Canal Novo**: Criado automaticamente pelo bot do BetLink
+2. **Canal Existente**: Importação de canal já existente no Telegram
+
+---
+
+## 🆕 Opção 1: Criar Canal Novo (Recomendado)
+
+### **Fluxo Completo**
+
+```mermaid
+sequenceDiagram
+    participant T as Tipster
+    participant S as Sistema BetLink
+    participant A as Admin
+    participant B as Bot BetLink
+    participant TG as Telegram API
+    participant DB as Database
+
+    T->>S: Solicita novo canal
+    S->>DB: Salva solicitação (pendente)
+    S->>A: Notifica nova solicitação
+    A->>S: Revisa e aprova
+    S->>B: createChannel(dados)
+    B->>TG: Cria canal via API
+    TG->>B: Retorna channel_id
+    B->>TG: Configura bot como admin
+    B->>DB: Salva canal (ativo)
+    S->>T: Email com link do canal
+```
+
+### **1. Solicitação pelo Tipster**
+
+#### **Interface - Modal de Solicitação**
+```tsx
+function SolicitarCanalModal() {
+  return (
+    <Dialog>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Solicitar Novo Canal</DialogTitle>
+          <DialogDescription>
+            Preencha os dados do canal. Após aprovação, ele será criado automaticamente.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="nome">Nome do Canal*</Label>
+              <Input 
+                id="nome"
+                placeholder="Ex: João Silva VIP"
+                maxLength={100}
+              />
+              <p className="text-sm text-muted-foreground">
+                Como aparecerá na plataforma
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="username">Username do Telegram*</Label>
+              <div className="flex">
+                <span className="flex items-center px-3 bg-muted rounded-l-md">
+                  @
+                </span>
+                <Input 
+                  id="username"
+                  placeholder="joaosilvavip"
+                  className="rounded-l-none"
+                  pattern="[a-zA-Z0-9_]{5,32}"
+                />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                5-32 caracteres, apenas letras, números e _
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="descricao">Descrição do Canal*</Label>
+            <Textarea 
+              id="descricao"
+              placeholder="Descreva sua estratégia, mercados principais, horários de envio..."
+              rows={4}
+              maxLength={500}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="preco">Preço Mensal (R$)*</Label>
+              <Input 
+                id="preco"
+                type="number"
+                placeholder="99.90"
+                min="10"
+                max="500"
+                step="0.01"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vagas">Limite de Assinantes*</Label>
+              <Input 
+                id="vagas"
+                type="number"
+                placeholder="100"
+                min="10"
+                max="1000"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Mercados Principais*</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {['Futebol', 'Basquete', 'Tênis', 'eSports', 'MMA', 'Outros'].map(mercado => (
+                <label key={mercado} className="flex items-center space-x-2">
+                  <Checkbox />
+                  <span>{mercado}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="justificativa">Por que criar este canal?*</Label>
+            <Textarea 
+              id="justificativa"
+              placeholder="Explique sua experiência e diferencial..."
+              rows={3}
+            />
+          </div>
+
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              Após aprovação, o canal será criado automaticamente no Telegram 
+              e você receberá o link por email.
+            </AlertDescription>
+          </Alert>
+
+          <DialogFooter>
+            <Button type="button" variant="outline">Cancelar</Button>
+            <Button type="submit">Enviar Solicitação</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+### **2. Aprovação pelo Admin**
+
+#### **Interface - Painel de Aprovação**
+```tsx
+function AprovacaoCanalModal({ solicitacao }) {
+  const [criando, setCriando] = useState(false);
+  const [erro, setErro] = useState('');
+
+  async function handleApprove() {
+    setCriando(true);
+    
+    try {
+      const result = await api.approveChannel(solicitacao.id);
+      
+      if (result.success) {
+        toast.success('Canal criado com sucesso!');
+        onClose();
+      } else {
+        setErro(result.error);
+      }
+    } catch (err) {
+      setErro('Erro ao criar canal');
+    } finally {
+      setCriando(false);
+    }
+  }
+
+  return (
+    <Dialog>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Aprovar Solicitação de Canal</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Dados da Solicitação */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Informações do Canal</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm font-medium">Nome do Canal</p>
+                <p className="text-lg">{solicitacao.nome}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Username Telegram</p>
+                <p className="text-lg">@{solicitacao.telegram_username}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Preço Mensal</p>
+                <p className="text-lg">R$ {solicitacao.preco_mensal}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Limite de Assinantes</p>
+                <p className="text-lg">{solicitacao.max_assinantes}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Verificações Automáticas */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Verificações</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <span>Username @{solicitacao.telegram_username} disponível</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <span>Tipster verificado e ativo</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <span>Stripe Connect configurado</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Preview do que será criado */}
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              Ao aprovar, o sistema irá:
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>Criar canal no Telegram: @{solicitacao.telegram_username}</li>
+                <li>Configurar @bethub_bot como administrador</li>
+                <li>Ativar o canal na plataforma</li>
+                <li>Enviar email ao tipster com instruções</li>
+              </ul>
+            </AlertDescription>
+          </Alert>
+
+          {erro && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{erro}</AlertDescription>
+            </Alert>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleApprove}
+            disabled={criando}
+          >
+            {criando ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Criando canal...
+              </>
+            ) : (
+              'Aprovar e Criar Canal'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+### **3. Criação Automática via Bot**
+
+#### **Backend - Processo de Criação**
+```typescript
+// api/admin/channels/approve/route.ts
+export async function POST(request: Request) {
+  const { solicitacaoId } = await request.json();
+  
+  try {
+    // 1. Buscar dados da solicitação
+    const { data: solicitacao } = await supabase
+      .from('solicitacoes_canais')
+      .select('*, profiles(*)')
+      .eq('id', solicitacaoId)
+      .single();
+
+    // 2. Verificar se username está disponível
+    const usernameCheck = await checkTelegramUsername(
+      solicitacao.telegram_username_desejado
+    );
+    
+    if (!usernameCheck.available) {
+      return Response.json({
+        success: false,
+        error: 'Username já está em uso',
+        suggestions: generateUsernameSuggestions(solicitacao.telegram_username_desejado)
+      });
+    }
+
+    // 3. Criar canal via Bot
+    const telegramChannel = await telegramBot.createChannel({
+      title: solicitacao.nome,
+      username: solicitacao.telegram_username_desejado,
+      description: solicitacao.descricao
+    });
+
+    // 4. Configurar bot como admin
+    await telegramBot.setChannelAdmin({
+      channelId: telegramChannel.id,
+      botUsername: '@bethub_bot',
+      permissions: {
+        can_post_messages: true,
+        can_edit_messages: true,
+        can_delete_messages: true,
+        can_invite_users: true,
+        can_restrict_members: true,
+        can_promote_members: false,
+        can_change_info: true,
+        can_manage_video_chats: false,
+        can_pin_messages: true
+      }
+    });
+
+    // 5. Salvar no banco
+    const { data: canal } = await supabase
+      .from('canais')
+      .insert({
+        tipster_id: solicitacao.tipster_id,
+        nome: solicitacao.nome,
+        descricao: solicitacao.descricao,
+        preco_mensal: solicitacao.preco_mensal,
+        max_assinantes: solicitacao.max_assinantes,
+        telegram_username: solicitacao.telegram_username_desejado,
+        telegram_id: telegramChannel.id,
+        telegram_link: `https://t.me/${solicitacao.telegram_username_desejado}`,
+        telegram_sync_status: 'sincronizado',
+        mercados_principais: solicitacao.mercados_principais,
+        status: 'ativo',
+        created_by: currentUser.id
+      })
+      .select()
+      .single();
+
+    // 6. Atualizar solicitação
+    await supabase
+      .from('solicitacoes_canais')
+      .update({
+        status: 'aprovado',
+        canal_criado_id: canal.id,
+        admin_id: currentUser.id,
+        analisado_at: new Date()
+      })
+      .eq('id', solicitacaoId);
+
+    // 7. Enviar email ao tipster
+    await sendEmail({
+      to: solicitacao.profiles.email,
+      subject: 'Seu canal foi criado com sucesso!',
+      template: 'canal-criado',
+      data: {
+        nome_canal: canal.nome,
+        telegram_link: canal.telegram_link,
+        telegram_username: canal.telegram_username
+      }
+    });
+
+    // 8. Log de atividade
+    await createActivityLog({
+      action: 'canal_created',
+      user_id: currentUser.id,
+      details: {
+        canal_id: canal.id,
+        tipster_id: solicitacao.tipster_id,
+        telegram_id: telegramChannel.id
+      }
+    });
+
+    return Response.json({
+      success: true,
+      canal: {
+        id: canal.id,
+        telegram_link: canal.telegram_link
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro ao criar canal:', error);
+    
+    return Response.json({
+      success: false,
+      error: 'Erro ao criar canal. Tente novamente.'
+    }, { status: 500 });
+  }
+}
+```
+
+### **4. Configuração do Bot Telegram**
+
+#### **Bot Configuration**
+```typescript
+// lib/telegram/bot-config.ts
+import { Telegraf } from 'telegraf';
+import { Api, TelegramClient } from 'telegram';
+
+// Bot principal para comandos
+export const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN!);
+
+// Cliente para ações avançadas (criar canais)
+export const telegramClient = new TelegramClient(
+  session,
+  parseInt(process.env.TELEGRAM_API_ID!),
+  process.env.TELEGRAM_API_HASH!,
+  {
+    connectionRetries: 5,
+  }
+);
+
+// Funções do Bot
+export const telegramBot = {
+  // Criar canal
+  async createChannel(data: {
+    title: string;
+    username: string;
+    description: string;
+  }) {
+    try {
+      // 1. Criar o canal (broadcast)
+      const result = await telegramClient.invoke(
+        new Api.channels.CreateChannel({
+          title: data.title,
+          about: data.description,
+          broadcast: true, // Canal, não grupo
+        })
+      );
+
+      const channel = result.chats[0];
+
+      // 2. Definir username público
+      await telegramClient.invoke(
+        new Api.channels.UpdateUsername({
+          channel: channel,
+          username: data.username
+        })
+      );
+
+      // 3. Configurar foto padrão (opcional)
+      // await this.setChannelPhoto(channel.id);
+
+      return {
+        id: channel.id.toString(),
+        accessHash: channel.accessHash,
+        title: channel.title,
+        username: data.username
+      };
+
+    } catch (error: any) {
+      if (error.message.includes('USERNAME_OCCUPIED')) {
+        throw new Error('Username já está em uso');
+      }
+      if (error.message.includes('CHANNELS_TOO_MUCH')) {
+        throw new Error('Limite de canais atingido');
+      }
+      throw error;
+    }
+  },
+
+  // Adicionar bot como admin
+  async setChannelAdmin(data: {
+    channelId: string;
+    botUsername: string;
+    permissions: AdminPermissions;
+  }) {
+    const adminRights = new Api.ChatAdminRights({
+      postMessages: data.permissions.can_post_messages,
+      editMessages: data.permissions.can_edit_messages,
+      deleteMessages: data.permissions.can_delete_messages,
+      banUsers: data.permissions.can_restrict_members,
+      inviteUsers: data.permissions.can_invite_users,
+      pinMessages: data.permissions.can_pin_messages,
+      addAdmins: data.permissions.can_promote_members,
+      anonymous: false,
+      changeInfo: data.permissions.can_change_info,
+      manageCall: data.permissions.can_manage_video_chats,
+    });
+
+    await telegramClient.invoke(
+      new Api.channels.EditAdmin({
+        channel: data.channelId,
+        userId: data.botUsername,
+        adminRights: adminRights,
+        rank: 'Bot Admin'
+      })
+    );
+  },
+
+  // Verificar se username está disponível
+  async checkUsername(username: string): Promise<boolean> {
+    try {
+      const result = await telegramClient.invoke(
+        new Api.account.CheckUsername({ username })
+      );
+      return result;
+    } catch {
+      return false;
+    }
+  }
+};
+```
+
+---
+
+## 📥 Opção 2: Importar Canal Existente
+
+### **Fluxo de Importação**
+
+```mermaid
+sequenceDiagram
+    participant T as Tipster
+    participant S as Sistema
+    participant B as Bot
+    participant TG as Canal Telegram
+
+    T->>S: Solicita importação
+    S->>T: Instruções para adicionar bot
+    T->>TG: Adiciona @bethub_bot como admin
+    TG->>B: Notifica novo admin
+    B->>S: Webhook (canal detectado)
+    S->>S: Valida e salva canal
+    S->>T: Confirmação de importação
+```
+
+### **Interface de Importação**
+
+```tsx
+function ImportarCanalModal() {
+  const [step, setStep] = useState(1);
+  const [verificando, setVerificando] = useState(false);
+
+  return (
+    <Dialog>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Importar Canal Existente</DialogTitle>
+        </DialogHeader>
+
+        {step === 1 && (
+          <div className="space-y-4">
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Para importar um canal existente, você precisa adicionar nosso bot
+                como administrador do canal.
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-2">
+              <Label>Username do seu canal</Label>
+              <div className="flex">
+                <span className="flex items-center px-3 bg-muted rounded-l-md">
+                  @
+                </span>
+                <Input 
+                  placeholder="seucanal"
+                  className="rounded-l-none"
+                />
+              </div>
+            </div>
+
+            <Button onClick={() => setStep(2)} className="w-full">
+              Próximo Passo
+            </Button>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="space-y-4">
+            <h3 className="font-semibold">Instruções para Adicionar o Bot</h3>
+            
+            <div className="space-y-3">
+              <div className="flex gap-3">
+                <div className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center text-sm">
+                  1
+                </div>
+                <div>
+                  <p className="font-medium">Abra o Telegram</p>
+                  <p className="text-sm text-muted-foreground">
+                    No seu celular ou computador
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center text-sm">
+                  2
+                </div>
+                <div>
+                  <p className="font-medium">Vá para seu canal</p>
+                  <p className="text-sm text-muted-foreground">
+                    Acesse @{channelUsername}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center text-sm">
+                  3
+                </div>
+                <div>
+                  <p className="font-medium">Abra as configurações</p>
+                  <p className="text-sm text-muted-foreground">
+                    Clique no nome do canal no topo
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center text-sm">
+                  4
+                </div>
+                <div>
+                  <p className="font-medium">Adicione um administrador</p>
+                  <p className="text-sm text-muted-foreground">
+                    Clique em "Administradores" → "Adicionar Administrador"
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center text-sm">
+                  5
+                </div>
+                <div>
+                  <p className="font-medium">Busque e adicione o bot</p>
+                  <div className="mt-2 p-3 bg-muted rounded-md">
+                    <code className="text-sm">@bethub_bot</code>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center text-sm">
+                  6
+                </div>
+                <div>
+                  <p className="font-medium">Configure as permissões</p>
+                  <div className="mt-2 space-y-1 text-sm">
+                    <label className="flex items-center gap-2">
+                      <Checkbox checked disabled />
+                      <span>Adicionar novos membros</span>
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <Checkbox checked disabled />
+                      <span>Banir usuários</span>
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <Checkbox checked disabled />
+                      <span>Gerenciar mensagens</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <Alert className="bg-green-50">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertDescription>
+                Após adicionar o bot, a importação será detectada automaticamente.
+              </AlertDescription>
+            </Alert>
+
+            <Button 
+              onClick={verificarImportacao}
+              disabled={verificando}
+              className="w-full"
+            >
+              {verificando ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Verificando...
+                </>
+              ) : (
+                'Verificar Importação'
+              )}
+            </Button>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="space-y-4 text-center">
+            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+              <CheckCircle className="h-8 w-8 text-green-600" />
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-semibold">Canal Importado com Sucesso!</h3>
+              <p className="text-muted-foreground">
+                Seu canal @{channelUsername} foi integrado ao BetLink
+              </p>
+            </div>
+
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-left">
+                <strong>Próximos passos:</strong>
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>Configure o preço e limite de assinantes</li>
+                  <li>Importe seu histórico de apostas (opcional)</li>
+                  <li>Comece a enviar novas apostas pelo Telegram</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+
+            <Button onClick={onComplete} className="w-full">
+              Configurar Canal
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+---
+
+## 🔧 Configurações Técnicas
+
+### **Requisitos do Bot**
+
+1. **Bot Token** (via @BotFather)
+   ```
+   Token: 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+   ```
+
+2. **API Credentials** (via my.telegram.org)
+   ```
+   API_ID: 12345678
+   API_HASH: 0123456789abcdef0123456789abcdef
+   ```
+
+3. **Permissões Necessárias**
+   - Criar canais
+   - Gerenciar administradores
+   - Adicionar/remover membros
+   - Ler e enviar mensagens
+
+### **Variáveis de Ambiente**
+
+```env
+# Telegram Bot
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+TELEGRAM_API_ID=12345678
+TELEGRAM_API_HASH=0123456789abcdef0123456789abcdef
+TELEGRAM_PHONE_NUMBER=+5511999999999
+
+# Webhook
+TELEGRAM_WEBHOOK_URL=https://bethub.com/api/webhooks/telegram
+TELEGRAM_WEBHOOK_SECRET=random_secret_string
+```
+
+### **Rate Limits e Tratamento de Erros**
+
+```typescript
+// Limites do Telegram
+const RATE_LIMITS = {
+  createChannel: { max: 10, window: '1h' },
+  addMember: { max: 200, window: '1d' },
+  sendMessage: { max: 30, window: '1m' }
+};
+
+// Tratamento de erros comuns
+const ERROR_HANDLERS = {
+  'USERNAME_OCCUPIED': 'Username já está em uso',
+  'CHANNELS_TOO_MUCH': 'Limite de canais atingido',
+  'CHAT_ADMIN_REQUIRED': 'Bot precisa ser admin',
+  'USER_PRIVACY_RESTRICTED': 'Usuário tem privacidade restrita',
+  'FLOOD_WAIT_X': 'Muitas requisições, aguarde X segundos'
+};
+```
+
+---
+
+## 📋 Checklist de Implementação
+
+### **Para Canal Novo**
+- [ ] Validar username disponível
+- [ ] Criar canal via API
+- [ ] Configurar bot como admin
+- [ ] Salvar IDs no banco
+- [ ] Enviar email ao tipster
+- [ ] Ativar canal na plataforma
+
+### **Para Canal Existente**
+- [ ] Receber webhook de admin added
+- [ ] Validar canal e permissões
+- [ ] Buscar informações do canal
+- [ ] Salvar no banco
+- [ ] Notificar tipster
+- [ ] Solicitar configurações adicionais
+
+---
+
+## 🎯 Benefícios do Sistema
+
+### **Automação Total**
+- ✅ Zero intervenção manual
+- ✅ Processo em segundos
+- ✅ Sem erros humanos
+- ✅ Escalável infinitamente
+
+### **Controle Completo**
+- ✅ Bot sempre admin
+- ✅ IDs salvos automaticamente
+- ✅ Integração perfeita
+- ✅ Gestão centralizada
+
+### **Experiência do Usuário**
+- ✅ Tipster não precisa saber criar canal
+- ✅ Link profissional garantido
+- ✅ Processo guiado passo a passo
+- ✅ Suporte a canais existentes

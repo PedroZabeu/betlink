@@ -1,0 +1,165 @@
+# BetLink - Product Requirements Document
+
+## 1. Visão Geral do Produto
+
+**BetLink** é uma plataforma de intermediação que conecta tipsters profissionais com clientes interessados em serviços de apostas esportivas, oferecendo gestão completa de assinaturas, integração com Telegram e sistema de comissionamento.
+
+## 2. Problema e Oportunidade
+
+**Problema**: Tipsters enfrentam dificuldades para gerenciar clientes, processar pagamentos recorrentes e controlar acesso aos seus canais. Clientes têm dificuldade para encontrar tipsters confiáveis e acompanhar resultados.
+
+**Oportunidade**: Centralizar a gestão de tipsters e clientes em uma plataforma única com automação de pagamentos e integração nativa com Telegram.
+
+## 3. Objetivos
+
+- Facilitar a monetização de tipsters através de assinaturas gerenciadas
+- Oferecer descoberta e acesso simplificado a canais para clientes
+- Automatizar gestão de acesso ao Telegram baseado em status de pagamento
+- Gerar receita através de comissionamento sobre vendas dos tipsters
+- Gerar receita de propaganda
+
+## 4. Personas e Casos de Uso
+
+### Tipster
+- **Perfil**: Profissional de apostas que vende dicas
+- **Necessidades**: Gestão de clientes, controle de acesso, recebimento automatizado
+- **Casos de uso**: Publicar dicas via template, gerenciar assinantes, criar promoções
+
+### Cliente
+- **Perfil**: Apostador que busca dicas profissionais
+- **Necessidades**: Encontrar tipsters confiáveis, acompanhar resultados, acesso fácil
+- **Casos de uso**: Descobrir canais, assinar serviços, acompanhar performance
+
+### Admin/Master
+- **Perfil**: Gestores da plataforma
+- **Necessidades**: Controle total, moderação, aprovações
+- **Casos de uso**: Gerenciar usuários, aprovar tipsters, inserir clientes VIP
+
+## 5. Funcionalidades Principais
+
+### 5.1 Área Pública
+- **Landing Page** com apresentação de produtos e propaganda
+- **Página de Canais** com cards de tipsters (métricas, filtros, modal detalhado)
+- **Blog** para artigos sobre apostas
+- **Sistema de descoberta** com filtros por ROI, mercados, casas
+
+### 5.2 Gestão de Usuários
+- **4 níveis de permissão**: Master, Admin, Tipster, Cliente
+- **Autenticação** via Supabase Auth
+- **Sign-up público** para clientes
+- **Criação controlada** para tipsters (apenas Master/Admin)
+
+### 5.3 Sistema de Assinaturas
+- **Preços definidos** pelos tipsters
+- **Renovação automática** via Stripe/Mercado Pago
+- **Controle de vagas** com lista de espera
+- **Códigos promocionais** gerenciados pelos tipsters
+- **Período de graça** de 3 dias para problemas de pagamento
+
+### 5.4 Integração Telegram
+- **Adição/remoção automática** baseada em status de assinatura
+- **Controle de acesso** em tempo real
+- **Notificações** de vencimento e renovação
+
+### 5.5 Dashboard do Cliente
+- **Visão consolidada** de canais assinados
+- **Métricas agregadas**: gastos, resultados, quantidade de canais
+- **Gestão de assinaturas** com opção de cancelamento
+
+### 5.6 Painel do Tipster
+- **Lista de assinantes** com status de pagamento
+- **Métricas de performance** e receita
+- **Sistema de envio de dicas** via template estruturado
+- **Gestão de promoções** e códigos desconto
+
+## 6. Funcionalidades Futuras (Nice to Have)
+- **Planilhamento automatizado** de apostas com captura de resultados
+- **Planilhador manual** para clientes
+- **Gestão de contas** em casas de apostas
+
+## 7. Requisitos Não-Funcionais
+
+### Performance
+- Tempo de resposta < 2s para páginas principais
+- Disponibilidade 99.5%
+- Suporte a 1000+ usuários simultâneos
+
+### Segurança
+- Autenticação segura via Supabase
+- Criptografia de dados sensíveis
+- Compliance PCI para pagamentos
+
+### Usabilidade
+- Interface responsiva (mobile-first)
+- Tempo de onboarding < 5 minutos
+- Acessibilidade WCAG 2.1 AA
+
+## 8. Integrações Necessárias
+
+### Obrigatórias
+- **Supabase**: Banco de dados e autenticação
+- **Telegram API**: Gestão de canais
+- **Stripe + Mercado Pago**: Processamento de pagamentos
+- **Vercel**: Deploy e hosting
+
+### Opcionais
+- **Sentry**: Monitoramento de erros
+- **Resend**: Envio de emails
+- **Upstash Redis**: Cache e sessões
+
+## 9. Modelo de Receita
+
+- **Comissão sobre receita** dos tipsters
+- **Taxa de processamento** de pagamentos
+- **Receita publicitária** de casas de apostas (área pública)
+
+## 10. Métricas de Sucesso
+
+### Adoção
+- Número de tipsters ativos: 50+ em 6 meses
+- Número de clientes pagantes: 500+ em 6 meses
+- Taxa de retenção mensal: 80%+
+
+### Financeiras
+- MRR (Monthly Recurring Revenue): R$ 50k em 12 meses
+- Comissão média por transação: 10-15%
+- Churn rate mensal: < 5%
+
+### Engagement
+- Tempo médio na plataforma: 15+ min/sessão
+- Taxa de conversão visitante → cliente: 3%+
+- NPS (Net Promoter Score): 50+
+
+## 11. Critérios de Aceite
+
+### MVP (Minimum Viable Product)
+- [ ] Sistema de autenticação funcional
+- [ ] CRUD completo para usuários e permissões
+- [ ] Integração básica com Telegram
+- [ ] Processamento de pagamentos via Stripe/MP
+- [ ] Dashboard funcional para clientes e tipsters
+- [ ] Área pública com descoberta de canais
+
+### Release v1.0
+- [ ] Sistema de templates para dicas
+- [ ] Códigos promocionais
+- [ ] Lista de espera automática
+- [ ] Blog integrado
+- [ ] Métricas avançadas de performance
+- [ ] Sistema de notificações complete
+
+
+## 12. Tech Stack
+
+- Nextjs
+- Supabase
+- Shadcn
+- Origin Ui
+
+
+# MCPs:
+
+1. Supabase
+2. Playwright
+3. context7
+4. 

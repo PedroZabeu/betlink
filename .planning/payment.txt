@@ -1,0 +1,3146 @@
+# BetLink - Payment System PRD (Stripe Connect)
+
+## 1. 📋 Visão Geral
+
+### 1.1 Objetivo
+Implementar um sistema de pagamentos robusto e automatizado para o BetLink utilizando Stripe Connect, permitindo que clientes assinem canais de tipsters com divisão automática de receita e acesso instantâneo via Telegram.
+
+### 1.2 Stack Tecnológico
+- **Payment Processor**: Stripe Connect
+- **Database**: Supabase PostgreSQL
+- **Backend**: Next.js API Routes
+- **Webhooks**: Stripe Webhooks + Vercel
+- **Frontend**: Next.js + Stripe Elements
+
+### 1.3 Princípios Fundamentais
+- **Split Automático**: Divisão de receita sem intervenção manual
+- **Acesso Instantâneo**: Cliente paga → acesso imediato ao Telegram
+- **Transparência Total**: Todas as transações auditáveis
+- **Compliance**: Stripe cuida da regulamentação
+- **Escalabilidade**: Preparado para crescimento
+
+---
+
+## 2. 🏗️ Arquitetura do Sistema
+
+### 2.1 Fluxo de Pagamento Completo
+
+```mermaid
+sequenceDiagram
+    participant C as Cliente
+    participant B as BetLink
+    participant S as Stripe
+    participant T as Telegram
+    participant Tip as Tipster
+
+    C->>B: Clica "Assinar Canal"
+    B->>S: Cria Payment Intent
+    S->>B: Retorna client_secret
+    B->>C: Mostra checkout
+    C->>S: Confirma pagamento
+    S->>B: Webhook payment.succeeded
+    B->>T: Adiciona cliente ao canal
+    B->>Tip: Notifica nova assinatura
+    S->>Tip: Transfer automático
+```
+
+### 2.2 Componentes Principais
+
+#### **Frontend (Next.js + Stripe Elements)**
+- Checkout responsivo (cartão + PIX)
+- Onboarding de tipsters (Stripe Connect)
+- Dashboard de pagamentos
+- Status de assinaturas
+
+#### **Backend (API Routes)**
+- Payment Intents creation
+- Webhook handling
+- Database synchronization
+- Error handling & retry
+
+#### **Stripe Connect**
+- Express accounts para tipsters
+- Automatic splits via application_fee
+- Instant payouts
+- Compliance handling
+
+#### **Database Integration**
+- Sync de status de pagamentos
+- Auditoria de transações
+- Controle de assinaturas
+- Webhook deduplication
+
+---
+
+## 3. 💳 Implementação do Checkout
+
+### 3.1 Página de Checkout (/checkout/[canal_id])
+
+#### **Layout Responsivo**
+```typescript
+// Componente principal
+export default function CheckoutPage({ canal }: { canal: Canal }) {
+  return (
+    <div className="grid md:grid-cols-2 gap-8">
+      {/* Left: Canal Info */}
+      <CanalSummary canal={canal} />
+      
+      {/* Right: Payment Form */}
+      <StripeCheckoutForm canal={canal} />
+    </div>
+  );
+}
+```
+
+#### **Informações do Canal (Lado Esquerdo)**
+```typescript
+interface CanalSummary {
+  canal: {
+    nome: string;
+    tipster_nome: string;
+    preco_mensal: number;
+    descricao: string;
+    avatar_url: string;
+    roi_30d: number;
+    total_apostas: number;
+  }
+}
+
+// Componente
+const CanalSummary = ({ canal }) => (
+  <Card className="p-6">
+    <div className="flex items-center gap-4 mb-4">
+      <Avatar src={canal.avatar_url} size="lg" />
+      <div>
+        <h2 className="text-xl font-bold">{canal.nome}</h2>
+        <p className="text-gray-600">por {canal.tipster_nome}</p>
+      </div>
+    </div>
+    
+    <div className="space-y-3">
+      <div className="flex justify-between">
+        <span>Preço mensal:</span>
+        <span className="font-bold">R$ {canal.preco_mensal}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>ROI (30 dias):</span>
+        <span className="text-green-600">+{canal.roi_30d}%</span>
+      </div>
+      <div className="flex justify-between">
+        <span>Total de apostas:</span>
+        <span>{canal.total_apostas}</span>
+      </div>
+    </div>
+    
+    <Separator className="my-4" />
+    
+    <div className="text-sm text-gray-600">
+      <p>✅ Acesso imediato ao canal Telegram</p>
+      <p>✅ Todas as dicas e análises</p>
+      <p>✅ Suporte direto do tipster</p>
+      <p>✅ Cancelamento a qualquer momento</p>
+    </div>
+  </Card>
+);
+```
+
+#### **Formulário de Pagamento (Lado Direito)**
+```typescript
+const StripeCheckoutForm = ({ canal }) => {
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'pix'>('card');
+  const [clientSecret, setClientSecret] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  return (
+    <Card className="p-6">
+      <h3 className="text-lg font-semibold mb-4">Forma de Pagamento</h3>
+      
+      {/* Payment Method Selector */}
+      <div className="flex gap-4 mb-6">
+        <PaymentMethodCard
+          type="card"
+          selected={paymentMethod === 'card'}
+          onClick={() => setPaymentMethod('card')}
+          icon={<CreditCard />}
+          title="Cartão de Crédito"
+          subtitle="Débito ou crédito"
+        />
+        <PaymentMethodCard
+          type="pix"
+          selected={paymentMethod === 'pix'}
+          onClick={() => setPaymentMethod('pix')}
+          icon={<Zap />}
+          title="PIX"
+          subtitle="Pagamento instantâneo"
+        />
+      </div>
+
+      {/* Stripe Elements */}
+      {paymentMethod === 'card' ? (
+        <CardPaymentForm 
+          canal={canal} 
+          onSuccess={handlePaymentSuccess}
+        />
+      ) : (
+        <PixPaymentForm 
+          canal={canal} 
+          onSuccess={handlePaymentSuccess}
+        />
+      )}
+    </Card>
+  );
+};
+```
+
+### 3.2 Payment Intent Creation
+
+#### **API Route: /api/create-payment-intent**
+```typescript
+// app/api/create-payment-intent/route.ts
+import { stripe } from '@/lib/stripe';
+import { supabase } from '@/lib/supabase';
+
+export async function POST(request: Request) {
+  try {
+    const { canal_id, payment_method_type } = await request.json();
+    
+    // 1. Buscar dados do canal e tipster
+    const { data: canal } = await supabase
+      .from('canais')
+      .select(`
+        *,
+        profiles!canais_tipster_id_fkey(stripe_account_id)
+      `)
+      .eq('id', canal_id)
+      .single();
+
+    if (!canal) {
+      return Response.json({ error: 'Canal não encontrado' }, { status: 404 });
+    }
+
+    // 2. Calcular valores
+    const amount = Math.round(canal.preco_mensal * 100); // Centavos
+    const platformFee = Math.round(amount * 0.10); // 10% comissão BetLink
+
+    // 3. Criar Payment Intent com split
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount,
+      currency: 'brl',
+      payment_method_types: [payment_method_type],
+      
+      // Split automático
+      application_fee_amount: platformFee,
+      transfer_data: {
+        destination: canal.profiles.stripe_account_id,
+      },
+      
+      // Metadata para tracking
+      metadata: {
+        canal_id,
+        tipster_id: canal.tipster_id,
+        cliente_id: user.id,
+        platform_fee: platformFee.toString(),
+      },
+    });
+
+    // 4. Salvar intent no banco para tracking
+    await supabase.from('payment_intents').insert({
+      stripe_payment_intent_id: paymentIntent.id,
+      canal_id,
+      cliente_id: user.id,
+      amount,
+      platform_fee: platformFee,
+      status: 'pending',
+    });
+
+    return Response.json({
+      client_secret: paymentIntent.client_secret,
+      amount,
+      platform_fee: platformFee,
+    });
+
+  } catch (error) {
+    console.error('Payment Intent creation failed:', error);
+    return Response.json(
+      { error: 'Erro interno do servidor' }, 
+      { status: 500 }
+    );
+  }
+}
+```
+
+### 3.3 Componentes de Pagamento
+
+#### **Card Payment Form**
+```typescript
+const CardPaymentForm = ({ canal, onSuccess }) => {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+
+    setLoading(true);
+
+    // 1. Criar Payment Intent
+    const { client_secret } = await fetch('/api/create-payment-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        canal_id: canal.id,
+        payment_method_type: 'card',
+      }),
+    }).then(r => r.json());
+
+    // 2. Confirmar pagamento
+    const { error, paymentIntent } = await stripe.confirmCardPayment(
+      client_secret,
+      {
+        payment_method: {
+          card: elements.getElement(CardElement)!,
+          billing_details: {
+            name: user.nome_completo,
+            email: user.email,
+          },
+        },
+      }
+    );
+
+    if (error) {
+      toast.error(error.message);
+    } else if (paymentIntent.status === 'succeeded') {
+      onSuccess(paymentIntent);
+    }
+
+    setLoading(false);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="p-4 border rounded-lg">
+        <CardElement 
+          options={{
+            style: {
+              base: {
+                fontSize: '16px',
+                color: '#424770',
+                '::placeholder': { color: '#aab7c4' },
+              },
+            },
+          }}
+        />
+      </div>
+
+      <div className="flex justify-between text-sm">
+        <span>Valor da assinatura:</span>
+        <span>R$ {canal.preco_mensal}</span>
+      </div>
+
+      <Button 
+        type="submit" 
+        disabled={!stripe || loading}
+        className="w-full"
+        size="lg"
+      >
+        {loading ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Processando...
+          </>
+        ) : (
+          `Pagar R$ ${canal.preco_mensal}`
+        )}
+      </Button>
+    </form>
+  );
+};
+```
+
+#### **PIX Payment Form**
+```typescript
+const PixPaymentForm = ({ canal, onSuccess }) => {
+  const [pixCode, setPixCode] = useState('');
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [polling, setPolling] = useState(false);
+
+  const createPixPayment = async () => {
+    const { client_secret } = await fetch('/api/create-payment-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        canal_id: canal.id,
+        payment_method_type: 'pix',
+      }),
+    }).then(r => r.json());
+
+    // Confirmar PIX payment
+    const { error, paymentIntent } = await stripe.confirmPixPayment(
+      client_secret,
+      {
+        payment_method: {
+          pix: {},
+          billing_details: {
+            name: user.nome_completo,
+            email: user.email,
+          },
+        },
+      }
+    );
+
+    if (!error && paymentIntent.next_action?.pix_display_qr_code) {
+      const pixData = paymentIntent.next_action.pix_display_qr_code;
+      setPixCode(pixData.data);
+      setQrCodeUrl(pixData.image_url_svg);
+      
+      // Iniciar polling para verificar pagamento
+      startPolling(paymentIntent.id);
+    }
+  };
+
+  const startPolling = (paymentIntentId: string) => {
+    setPolling(true);
+    const interval = setInterval(async () => {
+      const { data } = await fetch(`/api/payment-status/${paymentIntentId}`)
+        .then(r => r.json());
+      
+      if (data.status === 'succeeded') {
+        clearInterval(interval);
+        setPolling(false);
+        onSuccess(data);
+      }
+    }, 2000);
+
+    // Stop polling after 10 minutes
+    setTimeout(() => {
+      clearInterval(interval);
+      setPolling(false);
+    }, 600000);
+  };
+
+  return (
+    <div className="space-y-6">
+      {!qrCodeUrl ? (
+        <Button 
+          onClick={createPixPayment}
+          className="w-full"
+          size="lg"
+        >
+          Gerar PIX
+        </Button>
+      ) : (
+        <>
+          <div className="text-center">
+            <h4 className="font-semibold mb-2">Escaneie o QR Code</h4>
+            <div className="flex justify-center mb-4">
+              <img src={qrCodeUrl} alt="QR Code PIX" className="w-48 h-48" />
+            </div>
+            
+            <div className="text-sm text-gray-600 mb-4">
+              <p>Ou copie e cole o código PIX:</p>
+            </div>
+            
+            <div className="flex gap-2">
+              <Input 
+                value={pixCode} 
+                readOnly 
+                className="font-mono text-xs"
+              />
+              <Button
+                variant="outline"
+                onClick={() => navigator.clipboard.writeText(pixCode)}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {polling && (
+            <div className="text-center p-4 bg-blue-50 rounded-lg">
+              <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+              <p className="text-sm">Aguardando confirmação do pagamento...</p>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+```
+
+---
+
+## 4. 🔗 Stripe Connect Integration
+
+### 4.1 Tipster Onboarding
+
+#### **Express Account Creation**
+```typescript
+// app/api/create-connect-account/route.ts
+export async function POST(request: Request) {
+  try {
+    const { tipster_id } = await request.json();
+    
+    // 1. Buscar dados do tipster
+    const { data: tipster } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', tipster_id)
+      .eq('role', 'tipster')
+      .single();
+
+    // 2. Criar Express Account
+    const account = await stripe.accounts.create({
+      type: 'express',
+      country: 'BR',
+      email: tipster.email,
+      business_type: 'individual',
+      individual: {
+        email: tipster.email,
+        first_name: tipster.nome_completo.split(' ')[0],
+        last_name: tipster.nome_completo.split(' ').slice(1).join(' '),
+        phone: tipster.telefone,
+      },
+      capabilities: {
+        card_payments: { requested: true },
+        transfers: { requested: true },
+        tax_reporting_us_1099_misc: { requested: true },
+      },
+      settings: {
+        payouts: {
+          schedule: {
+            interval: 'daily', // Payouts diários
+          },
+        },
+      },
+    });
+
+    // 3. Atualizar tipster no banco
+    await supabase
+      .from('profiles')
+      .update({ 
+        stripe_account_id: account.id,
+        stripe_onboarding_completed: false,
+      })
+      .eq('id', tipster_id);
+
+    // 4. Criar Account Link para onboarding
+    const accountLink = await stripe.accountLinks.create({
+      account: account.id,
+      refresh_url: `${process.env.NEXT_PUBLIC_URL}/tipster/connect/refresh`,
+      return_url: `${process.env.NEXT_PUBLIC_URL}/tipster/connect/success`,
+      type: 'account_onboarding',
+    });
+
+    return Response.json({
+      account_id: account.id,
+      onboarding_url: accountLink.url,
+    });
+
+  } catch (error) {
+    console.error('Connect account creation failed:', error);
+    return Response.json(
+      { error: 'Erro ao criar conta Stripe' }, 
+      { status: 500 }
+    );
+  }
+}
+```
+
+#### **Onboarding UI (Tipster Dashboard)**
+```typescript
+const StripeConnectOnboarding = ({ tipster }) => {
+  const [loading, setLoading] = useState(false);
+  const [accountStatus, setAccountStatus] = useState(null);
+
+  const startOnboarding = async () => {
+    setLoading(true);
+    
+    const { onboarding_url } = await fetch('/api/create-connect-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tipster_id: tipster.id }),
+    }).then(r => r.json());
+
+    // Redirect para Stripe onboarding
+    window.location.href = onboarding_url;
+  };
+
+  if (tipster.stripe_onboarding_completed) {
+    return (
+      <Card className="p-6">
+        <div className="flex items-center gap-3">
+          <CheckCircle className="text-green-500 h-6 w-6" />
+          <div>
+            <h3 className="font-semibold">Conta Stripe Configurada</h3>
+            <p className="text-sm text-gray-600">
+              Você pode receber pagamentos automaticamente
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-6">
+      <div className="text-center space-y-4">
+        <CreditCard className="h-12 w-12 mx-auto text-blue-500" />
+        <div>
+          <h3 className="font-semibold">Configure sua Conta de Pagamentos</h3>
+          <p className="text-sm text-gray-600">
+            Configure sua conta Stripe para receber pagamentos automaticamente
+          </p>
+        </div>
+        
+        <div className="text-sm text-left space-y-2 bg-gray-50 p-4 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Check className="h-4 w-4 text-green-500" />
+            <span>Recebimento automático na sua conta</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Check className="h-4 w-4 text-green-500" />
+            <span>Comissão da plataforma descontada automaticamente</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Check className="h-4 w-4 text-green-500" />
+            <span>Relatórios financeiros detalhados</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Check className="h-4 w-4 text-green-500" />
+            <span>Payout diário (dinheiro na conta todo dia)</span>
+          </div>
+        </div>
+
+        <Button 
+          onClick={startOnboarding}
+          disabled={loading}
+          className="w-full"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Configurando...
+            </>
+          ) : (
+            'Configurar Conta Stripe'
+          )}
+        </Button>
+      </div>
+    </Card>
+  );
+};
+```
+
+### 4.2 Account Status Monitoring
+
+#### **Webhook para Account Updates**
+```typescript
+// app/api/webhooks/stripe/route.ts
+export async function POST(request: Request) {
+  const body = await request.text();
+  const signature = request.headers.get('stripe-signature')!;
+
+  let event: Stripe.Event;
+
+  try {
+    event = stripe.webhooks.constructEvent(
+      body,
+      signature,
+      process.env.STRIPE_WEBHOOK_SECRET!
+    );
+  } catch (err) {
+    return Response.json({ error: 'Invalid signature' }, { status: 400 });
+  }
+
+  switch (event.type) {
+    case 'account.updated':
+      await handleAccountUpdated(event.data.object as Stripe.Account);
+      break;
+    
+    case 'payment_intent.succeeded':
+      await handlePaymentSucceeded(event.data.object as Stripe.PaymentIntent);
+      break;
+    
+    case 'payment_intent.payment_failed':
+      await handlePaymentFailed(event.data.object as Stripe.PaymentIntent);
+      break;
+  }
+
+  return Response.json({ received: true });
+}
+
+async function handleAccountUpdated(account: Stripe.Account) {
+  const onboardingCompleted = account.charges_enabled && account.payouts_enabled;
+  
+  await supabase
+    .from('profiles')
+    .update({
+      stripe_onboarding_completed: onboardingCompleted,
+      stripe_charges_enabled: account.charges_enabled,
+      stripe_payouts_enabled: account.payouts_enabled,
+    })
+    .eq('stripe_account_id', account.id);
+
+  // Log da mudança
+  await supabase.from('logs_atividade').insert({
+    action: 'stripe_account_updated',
+    details: {
+      account_id: account.id,
+      charges_enabled: account.charges_enabled,
+      payouts_enabled: account.payouts_enabled,
+    },
+  });
+}
+```
+
+---
+
+## 5. 📡 Webhook System
+
+### 5.1 Payment Succeeded Handler
+
+#### **Fluxo Crítico: Pagamento → Acesso Telegram**
+```typescript
+async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
+  try {
+    // 1. Buscar dados do payment intent
+    const { data: payment } = await supabase
+      .from('payment_intents')
+      .select(`
+        *,
+        canais(*),
+        profiles(*)
+      `)
+      .eq('stripe_payment_intent_id', paymentIntent.id)
+      .single();
+
+    if (!payment) {
+      throw new Error('Payment intent não encontrado no banco');
+    }
+
+    // 2. Criar assinatura no banco
+    const assinatura = await supabase
+      .from('assinaturas')
+      .insert({
+        cliente_id: payment.cliente_id,
+        canal_id: payment.canal_id,
+        preco_pago: payment.amount / 100,
+        data_inicio: new Date().toISOString().split('T')[0],
+        data_vencimento: new Date(
+          Date.now() + 30 * 24 * 60 * 60 * 1000
+        ).toISOString().split('T')[0],
+        status: 'ativa',
+        stripe_payment_intent_id: paymentIntent.id,
+      })
+      .select()
+      .single();
+
+    // 3. CRÍTICO: Adicionar ao Telegram
+    const telegramResult = await addUserToTelegramChannel({
+      cliente_telegram_username: payment.profiles.telegram_username,
+      canal_telegram_id: payment.canais.telegram_id,
+    });
+
+    if (!telegramResult.success) {
+      // Se falhar, tentar novamente em 30 segundos
+      await scheduleRetry('add_to_telegram', {
+        assinatura_id: assinatura.data.id,
+        attempt: 1,
+      });
+    } else {
+      // 4. Marcar como adicionado no Telegram
+      await supabase
+        .from('assinaturas')
+        .update({ 
+          adicionado_telegram_at: new Date().toISOString(),
+          telegram_add_success: true,
+        })
+        .eq('id', assinatura.data.id);
+    }
+
+    // 5. Atualizar status do payment intent
+    await supabase
+      .from('payment_intents')
+      .update({ 
+        status: 'succeeded',
+        assinatura_id: assinatura.data.id,
+      })
+      .eq('id', payment.id);
+
+    // 6. Notificar cliente por email
+    await sendEmail({
+      to: payment.profiles.email,
+      template: 'assinatura_confirmada',
+      data: {
+        canal_nome: payment.canais.nome,
+        telegram_link: payment.canais.telegram_link,
+      },
+    });
+
+    // 7. Notificar tipster
+    await sendEmail({
+      to: payment.canais.tipster_email,
+      template: 'nova_assinatura',
+      data: {
+        cliente_nome: payment.profiles.nome_completo,
+        canal_nome: payment.canais.nome,
+        valor: payment.amount / 100,
+      },
+    });
+
+    // 8. Log de auditoria
+    await supabase.from('logs_atividade').insert({
+      user_id: payment.cliente_id,
+      action: 'payment_succeeded',
+      table_name: 'assinaturas',
+      record_id: assinatura.data.id,
+      details: {
+        payment_intent_id: paymentIntent.id,
+        amount: payment.amount,
+        canal_id: payment.canal_id,
+        telegram_added: telegramResult.success,
+      },
+    });
+
+  } catch (error) {
+    console.error('Payment succeeded handler failed:', error);
+    
+    // Retry crítico - tentar novamente
+    await scheduleRetry('payment_succeeded', {
+      payment_intent_id: paymentIntent.id,
+      attempt: 1,
+    });
+  }
+}
+```
+
+### 5.2 Retry System
+
+#### **Sistema de Retry para Ações Críticas**
+```typescript
+// app/api/retry/[action]/route.ts
+export async function POST(
+  request: Request,
+  { params }: { params: { action: string } }
+) {
+  const { data, attempt } = await request.json();
+  const maxAttempts = 5;
+
+  if (attempt > maxAttempts) {
+    // Falha definitiva - alertar admins
+    await alertAdmins('retry_failed', { action: params.action, data });
+    return Response.json({ error: 'Max attempts reached' }, { status: 500 });
+  }
+
+  try {
+    switch (params.action) {
+      case 'add_to_telegram':
+        await retryAddToTelegram(data);
+        break;
+      
+      case 'payment_succeeded':
+        await retryPaymentSucceeded(data);
+        break;
+    }
+
+    return Response.json({ success: true });
+
+  } catch (error) {
+    // Schedule next retry (exponential backoff)
+    const delayMs = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s, 16s, 32s
+    
+    setTimeout(async () => {
+      await fetch(`/api/retry/${params.action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data,
+          attempt: attempt + 1,
+        }),
+      });
+    }, delayMs);
+
+    return Response.json({ retry_scheduled: true });
+  }
+}
+
+async function retryAddToTelegram(data: { assinatura_id: string }) {
+  const { data: assinatura } = await supabase
+    .from('assinaturas')
+    .select(`
+      *,
+      profiles(*),
+      canais(*)
+    `)
+    .eq('id', data.assinatura_id)
+    .single();
+
+  const result = await addUserToTelegramChannel({
+    cliente_telegram_username: assinatura.profiles.telegram_username,
+    canal_telegram_id: assinatura.canais.telegram_id,
+  });
+
+  if (result.success) {
+    await supabase
+      .from('assinaturas')
+      .update({ 
+        adicionado_telegram_at: new Date().toISOString(),
+        telegram_add_success: true,
+      })
+      .eq('id', data.assinatura_id);
+  } else {
+    throw new Error('Telegram add failed again');
+  }
+}
+```
+
+### 5.3 Webhook Deduplication
+
+#### **Prevenção de Processamento Duplicado**
+```typescript
+async function ensureWebhookDeduplication(eventId: string, eventType: string) {
+  // Verificar se já processamos este evento
+  const { data: existing } = await supabase
+    .from('webhook_events')
+    .select('id')
+    .eq('stripe_event_id', eventId)
+    .single();
+
+  if (existing) {
+    throw new Error('Event already processed');
+  }
+
+  // Marcar como processando
+  await supabase.from('webhook_events').insert({
+    stripe_event_id: eventId,
+    event_type: eventType,
+    status: 'processing',
+    received_at: new Date().toISOString(),
+  });
+}
+
+async function markWebhookComplete(eventId: string, success: boolean) {
+  await supabase
+    .from('webhook_events')
+    .update({
+      status: success ? 'completed' : 'failed',
+      processed_at: new Date().toISOString(),
+    })
+    .eq('stripe_event_id', eventId);
+}
+```
+
+---
+
+## 6. 🔄 Subscription Management
+
+### 6.1 Renovação Automática
+
+#### **Job Diário para Processar Vencimentos**
+```typescript
+// app/api/cron/process-renewals/route.ts
+export async function POST() {
+  try {
+    // Buscar assinaturas que vencem hoje
+    const { data: expiringSubscriptions } = await supabase
+      .from('assinaturas')
+      .select(`
+        *,
+        profiles(*),
+        canais(*)
+      `)
+      .eq('data_vencimento', new Date().toISOString().split('T')[0])
+      .eq('status', 'ativa');
+
+    for (const subscription of expiringSubscriptions) {
+      await processRenewal(subscription);
+    }
+
+    return Response.json({ 
+      processed: expiringSubscriptions.length 
+    });
+
+  } catch (error) {
+    console.error('Renewal processing failed:', error);
+    return Response.json({ error: 'Processing failed' }, { status: 500 });
+  }
+}
+
+async function processRenewal(subscription: any) {
+  try {
+    // 1. Buscar forma de pagamento salva (se houver)
+    const customer = await stripe.customers.retrieve(
+      subscription.profiles.stripe_customer_id
+    );
+
+    // 2. Criar Payment Intent para renovação
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(subscription.preco_pago * 100),
+      currency: 'brl',
+      customer: customer.id,
+      payment_method: customer.invoice_settings.default_payment_method,
+      confirm: true, // Tentar cobrança automaticamente
+      
+      // Split automático
+      application_fee_amount: Math.round(subscription.preco_pago * 10), // 10%
+      transfer_data: {
+        destination: subscription.canais.tipster_stripe_account_id,
+      },
+      
+      metadata: {
+        subscription_renewal: 'true',
+        assinatura_id: subscription.id,
+        canal_id: subscription.canal_id,
+      },
+    });
+
+    if (paymentIntent.status === 'succeeded') {
+      // Renovação bem-sucedida
+      await supabase
+        .from('assinaturas')
+        .update({
+          data_vencimento: new Date(
+            Date.now() + 30 * 24 * 60 * 60 * 1000
+          ).toISOString().split('T')[0],
+          renewed_at: new Date().toISOString(),
+        })
+        .eq('id', subscription.id);
+
+    } else {
+      // Falha na renovação - período de graça
+      await supabase
+        .from('assinaturas')
+        .update({ status: 'periodo_graca' })
+        .eq('id', subscription.id);
+      
+      // Notificar cliente sobre problema no pagamento
+      await sendEmail({
+        to: subscription.profiles.email,
+        template: 'renovacao_falhou',
+        data: {
+          canal_nome: subscription.canais.nome,
+          valor: subscription.preco_pago,
+        },
+      });
+    }
+
+  } catch (error) {
+    console.error('Individual renewal failed:', error);
+    
+    // Marcar para retry manual
+    await supabase.from('failed_renewals').insert({
+      assinatura_id: subscription.id,
+      error_message: error.message,
+      retry_count: 0,
+    });
+  }
+}
+```
+
+### 6.2 Cancelamento de Assinaturas
+
+#### **Cancelamento pelo Cliente**
+```typescript
+// app/api/cancel-subscription/route.ts
+export async function POST(request: Request) {
+  try {
+    const { assinatura_id } = await request.json();
+    const user = await getUser(); // Auth middleware
+
+    // 1. Verificar se é a assinatura do usuário
+    const { data: assinatura } = await supabase
+      .from('assinaturas')
+      .select(`
+        *,
+        canais(*)
+      `)
+      .eq('id', assinatura_id)
+      .eq('cliente_id', user.id)
+      .eq('status', 'ativa')
+      .single();
+
+    if (!assinatura) {
+      return Response.json({ error: 'Assinatura não encontrada' }, { status: 404 });
+    }
+
+    // 2. Cancelar no banco
+    await supabase
+      .from('assinaturas')
+      .update({
+        status: 'cancelada',
+        data_cancelamento: new Date().toISOString(),
+      })
+      .eq('id', assinatura_id);
+
+    // 3. Remover do Telegram
+    const telegramResult = await removeUserFromTelegramChannel({
+      cliente_telegram_username: user.telegram_username,
+      canal_telegram_id: assinatura.canais.telegram_id,
+    });
+
+    if (telegramResult.success) {
+      await supabase
+        .from('assinaturas')
+        .update({ 
+          removido_telegram_at: new Date().toISOString(),
+          telegram_remove_success: true,
+        })
+        .eq('id', assinatura_id);
+    }
+
+    // 4. Notificar cliente
+    await sendEmail({
+      to: user.email,
+      template: 'assinatura_cancelada',
+      data: {
+        canal_nome: assinatura.canais.nome,
+        data_cancelamento: new Date().toLocaleDateString('pt-BR'),
+      },
+    });
+
+    // 5. Log de auditoria
+    await supabase.from('logs_atividade').insert({
+      user_id: user.id,
+      action: 'subscription_cancelled',
+      table_name: 'assinaturas',
+      record_id: assinatura_id,
+      details: {
+        canal_id: assinatura.canal_id,
+        telegram_removed: telegramResult.success,
+      },
+    });
+
+    return Response.json({ success: true });
+
+  } catch (error) {
+    console.error('Subscription cancellation failed:', error);
+    return Response.json({ error: 'Erro interno' }, { status: 500 });
+  }
+}
+```
+
+---
+
+## 7. 📊 Dashboard e Relatórios
+
+### 7.1 Dashboard do Tipster
+
+#### **Métricas Financeiras**
+```typescript
+const TipsterFinancialDashboard = ({ tipster_id }) => {
+  const [metrics, setMetrics] = useState(null);
+  const [period, setPeriod] = useState('30d');
+
+  useEffect(() => {
+    fetchFinancialMetrics();
+  }, [period]);
+
+  const fetchFinancialMetrics = async () => {
+    const response = await fetch(`/api/tipster/financial-metrics?period=${period}`);
+    const data = await response.json();
+    setMetrics(data);
+  };
+
+  if (!metrics) return <Skeleton />;
+
+  return (
+    <div className="space-y-6">
+      {/* Period Selector */}
+      <Select value={period} onValueChange={setPeriod}>
+        <SelectTrigger className="w-48">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="7d">Últimos 7 dias</SelectItem>
+          <SelectItem value="30d">Últimos 30 dias</SelectItem>
+          <SelectItem value="90d">Últimos 90 dias</SelectItem>
+          <SelectItem value="ytd">Este ano</SelectItem>
+        </SelectContent>
+      </Select>
+
+      {/* Metrics Cards */}
+      <div className="grid md:grid-cols-4 gap-6">
+        <MetricCard
+          title="Receita Total"
+          value={formatCurrency(metrics.total_revenue)}
+          change={metrics.revenue_change}
+          icon={<DollarSign />}
+        />
+        <MetricCard
+          title="Comissão Stripe"
+          value={formatCurrency(metrics.stripe_fees)}
+          subtitle={`${metrics.stripe_fee_percentage}% das vendas`}
+          icon={<CreditCard />}
+        />
+        <MetricCard
+          title="Comissão BetLink"
+          value={formatCurrency(metrics.platform_fees)}
+          subtitle={`${metrics.platform_fee_percentage}% das vendas`}
+          icon={<Building />}
+        />
+        <MetricCard
+          title="Líquido Recebido"
+          value={formatCurrency(metrics.net_received)}
+          change={metrics.net_change}
+          icon={<TrendingUp />}
+        />
+      </div>
+
+      {/* Revenue Chart */}
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4">Evolução da Receita</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={metrics.revenue_chart}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="date" />
+            <YAxis />
+            <Tooltip formatter={(value) => formatCurrency(value)} />
+            <Line 
+              type="monotone" 
+              dataKey="gross_revenue" 
+              stroke="#8884d8" 
+              name="Receita Bruta"
+            />
+            <Line 
+              type="monotone" 
+              dataKey="net_revenue" 
+              stroke="#82ca9d" 
+              name="Receita Líquida"
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </Card>
+
+      {/* Transactions Table */}
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4">Transações Recentes</h3>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Data</TableHead>
+              <TableHead>Cliente</TableHead>
+              <TableHead>Canal</TableHead>
+              <TableHead>Valor Bruto</TableHead>
+              <TableHead>Comissões</TableHead>
+              <TableHead>Valor Líquido</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {metrics.recent_transactions.map((transaction) => (
+              <TableRow key={transaction.id}>
+                <TableCell>
+                  {formatDate(transaction.created_at)}
+                </TableCell>
+                <TableCell>{transaction.cliente_nome}</TableCell>
+                <TableCell>{transaction.canal_nome}</TableCell>
+                <TableCell>{formatCurrency(transaction.gross_amount)}</TableCell>
+                <TableCell>
+                  <div className="text-sm">
+                    <div>Stripe: {formatCurrency(transaction.stripe_fee)}</div>
+                    <div>BetLink: {formatCurrency(transaction.platform_fee)}</div>
+                  </div>
+                </TableCell>
+                <TableCell className="font-medium">
+                  {formatCurrency(transaction.net_amount)}
+                </TableCell>
+                <TableCell>
+                  <PaymentStatusBadge status={transaction.status} />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+    </div>
+  );
+};
+```
+
+### 7.2 API para Métricas Financeiras
+
+#### **Endpoint para Dashboard do Tipster**
+```typescript
+// app/api/tipster/financial-metrics/route.ts
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const period = searchParams.get('period') || '30d';
+    const user = await getUser();
+
+    // Calcular data de início baseado no período
+    const startDate = calculateStartDate(period);
+
+    // Query principal para métricas
+    const { data: transactions } = await supabase
+      .from('payment_intents')
+      .select(`
+        *,
+        assinaturas(
+          canais(nome),
+          profiles(nome_completo)
+        )
+      `)
+      .eq('tipster_id', user.id)
+      .eq('status', 'succeeded')
+      .gte('created_at', startDate.toISOString());
+
+    // Calcular métricas
+    const metrics = {
+      total_revenue: transactions.reduce((sum, t) => sum + t.amount, 0) / 100,
+      stripe_fees: transactions.reduce((sum, t) => sum + t.stripe_fee, 0) / 100,
+      platform_fees: transactions.reduce((sum, t) => sum + t.platform_fee, 0) / 100,
+      net_received: transactions.reduce((sum, t) => 
+        sum + t.amount - t.stripe_fee - t.platform_fee, 0
+      ) / 100,
+      
+      // Porcentagens
+      stripe_fee_percentage: calculateAveragePercentage(transactions, 'stripe_fee'),
+      platform_fee_percentage: calculateAveragePercentage(transactions, 'platform_fee'),
+      
+      // Dados do gráfico
+      revenue_chart: generateRevenueChart(transactions, period),
+      
+      // Transações recentes
+      recent_transactions: transactions
+        .slice(0, 10)
+        .map(formatTransactionForTable),
+    };
+
+    // Calcular mudanças vs período anterior (para setas)
+    const previousMetrics = await calculatePreviousPeriodMetrics(user.id, period);
+    metrics.revenue_change = calculatePercentageChange(
+      metrics.total_revenue,
+      previousMetrics.total_revenue
+    );
+    metrics.net_change = calculatePercentageChange(
+      metrics.net_received,
+      previousMetrics.net_received
+    );
+
+    return Response.json(metrics);
+
+  } catch (error) {
+    console.error('Financial metrics calculation failed:', error);
+    return Response.json({ error: 'Erro interno' }, { status: 500 });
+  }
+}
+
+function calculateStartDate(period: string): Date {
+  const now = new Date();
+  switch (period) {
+    case '7d': return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    case '30d': return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    case '90d': return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    case 'ytd': return new Date(now.getFullYear(), 0, 1);
+    default: return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  }
+}
+
+function generateRevenueChart(transactions: any[], period: string) {
+  // Group by day/week/month based on period
+  const groupBy = period === '7d' ? 'day' : period === '30d' ? 'day' : 'month';
+  
+  // Group transactions and calculate daily/monthly totals
+  return groupTransactionsByPeriod(transactions, groupBy);
+}
+```
+
+---
+
+## 8. 🚨 Error Handling & Monitoring
+
+### 8.1 Error Boundaries
+
+#### **Payment Error Handler**
+```typescript
+export class PaymentError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public userMessage: string,
+    public retryable: boolean = false
+  ) {
+    super(message);
+    this.name = 'PaymentError';
+  }
+}
+
+export async function handlePaymentError(
+  error: any,
+  context: {
+    payment_intent_id?: string;
+    user_id?: string;
+    canal_id?: string;
+  }
+) {
+  // Log detalhado do erro
+  console.error('Payment error occurred:', {
+    error: error.message,
+    stack: error.stack,
+    context,
+    timestamp: new Date().toISOString(),
+  });
+
+  // Salvar no banco para análise
+  await supabase.from('error_logs').insert({
+    error_type: 'payment_error',
+    error_message: error.message,
+    error_stack: error.stack,
+    context: context,
+    user_id: context.user_id,
+  });
+
+  // Determinar se é erro crítico
+  const isCritical = [
+    'payment_intent_creation_failed',
+    'webhook_processing_failed',
+    'telegram_integration_failed',
+  ].includes(error.code);
+
+  if (isCritical) {
+    // Alertar admins imediatamente
+    await alertAdmins('critical_payment_error', {
+      error: error.message,
+      context,
+    });
+  }
+
+  // Retornar erro user-friendly
+  return new PaymentError(
+    error.message,
+    error.code || 'payment_error',
+    getUserFriendlyMessage(error.code),
+    error.retryable || false
+  );
+}
+
+function getUserFriendlyMessage(errorCode: string): string {
+  const messages = {
+    'card_declined': 'Seu cartão foi recusado. Tente outro cartão ou entre em contato com seu banco.',
+    'insufficient_funds': 'Saldo insuficiente. Verifique o limite do seu cartão.',
+    'expired_card': 'Cartão expirado. Verifique a data de validade.',
+    'invalid_cvc': 'Código de segurança inválido. Verifique o CVC do seu cartão.',
+    'processing_error': 'Erro temporário no processamento. Tente novamente em alguns minutos.',
+    'pix_expired': 'PIX expirado. Gere um novo código PIX.',
+    'default': 'Erro no pagamento. Entre em contato com o suporte se o problema persistir.',
+  };
+  
+  return messages[errorCode] || messages.default;
+}
+```
+
+### 8.2 Health Checks
+
+#### **Endpoint para Monitoramento**
+```typescript
+// app/api/health/payments/route.ts
+export async function GET() {
+  const checks = {
+    stripe_connection: false,
+    database_connection: false,
+    webhook_processing: false,
+    telegram_integration: false,
+    last_successful_payment: null,
+    failed_payments_last_hour: 0,
+  };
+
+  try {
+    // 1. Teste conexão Stripe
+    const balance = await stripe.balance.retrieve();
+    checks.stripe_connection = true;
+
+    // 2. Teste conexão banco
+    const { error } = await supabase.from('payment_intents').select('id').limit(1);
+    checks.database_connection = !error;
+
+    // 3. Verificar webhook processing (últimos 5 min)
+    const { data: recentWebhooks } = await supabase
+      .from('webhook_events')
+      .select('*')
+      .gte('received_at', new Date(Date.now() - 5 * 60 * 1000).toISOString());
+    
+    checks.webhook_processing = recentWebhooks?.every(w => w.status === 'completed') ?? true;
+
+    // 4. Último pagamento bem-sucedido
+    const { data: lastPayment } = await supabase
+      .from('payment_intents')
+      .select('created_at')
+      .eq('status', 'succeeded')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    
+    checks.last_successful_payment = lastPayment?.created_at;
+
+    // 5. Pagamentos falhados na última hora
+    const { count } = await supabase
+      .from('payment_intents')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'failed')
+      .gte('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString());
+    
+    checks.failed_payments_last_hour = count || 0;
+
+    // Status geral
+    const isHealthy = checks.stripe_connection && 
+                     checks.database_connection && 
+                     checks.webhook_processing &&
+                     checks.failed_payments_last_hour < 10;
+
+    return Response.json({
+      status: isHealthy ? 'healthy' : 'unhealthy',
+      checks,
+      timestamp: new Date().toISOString(),
+    });
+
+  } catch (error) {
+    return Response.json({
+      status: 'unhealthy',
+      checks,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    }, { status: 500 });
+  }
+}
+```
+
+### 8.3 Alerting System
+
+#### **Sistema de Alertas para Admins**
+```typescript
+async function alertAdmins(alertType: string, data: any) {
+  const alertConfig = {
+    'critical_payment_error': {
+      urgency: 'high',
+      channels: ['email', 'slack'],
+      template: 'critical_error',
+    },
+    'webhook_failures': {
+      urgency: 'medium',
+      channels: ['slack'],
+      template: 'webhook_failure',
+    },
+    'high_failure_rate': {
+      urgency: 'medium',
+      channels: ['email'],
+      template: 'high_failure_rate',
+    },
+  };
+
+  const config = alertConfig[alertType];
+  if (!config) return;
+
+  // Email para admins
+  if (config.channels.includes('email')) {
+    await sendEmail({
+      to: process.env.ADMIN_EMAILS?.split(',') || [],
+      template: config.template,
+      data: {
+        alert_type: alertType,
+        urgency: config.urgency,
+        data,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  }
+
+  // Slack webhook
+  if (config.channels.includes('slack')) {
+    await fetch(process.env.SLACK_WEBHOOK_URL!, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: `🚨 ${alertType.toUpperCase()}`,
+        attachments: [{
+          color: config.urgency === 'high' ? 'danger' : 'warning',
+          fields: Object.entries(data).map(([key, value]) => ({
+            title: key,
+            value: JSON.stringify(value),
+            short: true,
+          })),
+        }],
+      }),
+    });
+  }
+
+  // Log do alerta
+  await supabase.from('admin_alerts').insert({
+    alert_type: alertType,
+    urgency: config.urgency,
+    data,
+    channels: config.channels,
+    sent_at: new Date().toISOString(),
+  });
+}
+```
+
+---
+
+## 9. 🧪 Testing Strategy
+
+### 9.1 Test Environment Setup
+
+#### **Stripe Test Mode Configuration**
+```typescript
+// lib/stripe-test.ts
+export const testConfig = {
+  publishableKey: process.env.STRIPE_TEST_PUBLISHABLE_KEY!,
+  secretKey: process.env.STRIPE_TEST_SECRET_KEY!,
+  webhookSecret: process.env.STRIPE_TEST_WEBHOOK_SECRET!,
+};
+
+export const testCards = {
+  visa_success: '4242424242424242',
+  visa_declined: '4000000000000002',
+  visa_insufficient_funds: '4000000000009995',
+  mastercard_success: '5555555555554444',
+};
+
+export const testPixCodes = {
+  success: 'test_pix_code_success',
+  failed: 'test_pix_code_failed',
+};
+```
+
+#### **E2E Payment Test**
+```typescript
+// tests/e2e/payment-flow.spec.ts
+import { test, expect } from '@playwright/test';
+
+test.describe('Payment Flow', () => {
+  test('successful card payment creates subscription and telegram access', async ({ page }) => {
+    // 1. Navigate to canal page
+    await page.goto('/canal/test-canal-id');
+    
+    // 2. Click subscribe button
+    await page.click('[data-testid="subscribe-button"]');
+    
+    // 3. Fill payment form
+    await page.fill('[data-testid="card-number"]', '4242424242424242');
+    await page.fill('[data-testid="card-expiry"]', '12/34');
+    await page.fill('[data-testid="card-cvc"]', '123');
+    
+    // 4. Submit payment
+    await page.click('[data-testid="pay-button"]');
+    
+    // 5. Wait for success
+    await expect(page.locator('[data-testid="payment-success"]')).toBeVisible();
+    
+    // 6. Verify telegram link appears
+    await expect(page.locator('[data-testid="telegram-link"]')).toBeVisible();
+    
+    // 7. Verify subscription created in database
+    const subscription = await getTestSubscription();
+    expect(subscription.status).toBe('ativa');
+  });
+
+  test('PIX payment shows QR code and polls for confirmation', async ({ page }) => {
+    await page.goto('/canal/test-canal-id');
+    await page.click('[data-testid="subscribe-button"]');
+    
+    // Select PIX
+    await page.click('[data-testid="payment-method-pix"]');
+    await page.click('[data-testid="generate-pix"]');
+    
+    // Verify QR code appears
+    await expect(page.locator('[data-testid="pix-qr-code"]')).toBeVisible();
+    await expect(page.locator('[data-testid="pix-code"]')).toBeVisible();
+    
+    // Verify polling indicator
+    await expect(page.locator('[data-testid="payment-polling"]')).toBeVisible();
+  });
+
+  test('failed payment shows error message', async ({ page }) => {
+    await page.goto('/canal/test-canal-id');
+    await page.click('[data-testid="subscribe-button"]');
+    
+    // Use declined card
+    await page.fill('[data-testid="card-number"]', '4000000000000002');
+    await page.fill('[data-testid="card-expiry"]', '12/34');
+    await page.fill('[data-testid="card-cvc"]', '123');
+    
+    await page.click('[data-testid="pay-button"]');
+    
+    // Verify error message
+    await expect(page.locator('[data-testid="payment-error"]')).toBeVisible();
+    await expect(page.locator('[data-testid="payment-error"]')).toContainText('recusado');
+  });
+});
+```
+
+### 9.2 Webhook Testing
+
+#### **Webhook Test Simulation**
+```typescript
+// tests/api/webhooks.test.ts
+import { handleStripeWebhook } from '@/app/api/webhooks/stripe/route';
+
+describe('Stripe Webhooks', () => {
+  test('payment_intent.succeeded creates subscription and adds to telegram', async () => {
+    // Mock webhook event
+    const event = {
+      type: 'payment_intent.succeeded',
+      data: {
+        object: {
+          id: 'pi_test_123',
+          amount: 10000,
+          metadata: {
+            canal_id: 'test-canal-id',
+            cliente_id: 'test-client-id',
+          },
+        },
+      },
+    };
+
+    // Mock telegram function
+    jest.mocked(addUserToTelegramChannel).mockResolvedValue({ success: true });
+
+    await handleStripeWebhook(event);
+
+    // Verify subscription created
+    const subscription = await supabase
+      .from('assinaturas')
+      .select('*')
+      .eq('stripe_payment_intent_id', 'pi_test_123')
+      .single();
+    
+    expect(subscription.data.status).toBe('ativa');
+    
+    // Verify telegram function called
+    expect(addUserToTelegramChannel).toHaveBeenCalledWith({
+      cliente_telegram_username: expect.any(String),
+      canal_telegram_id: expect.any(String),
+    });
+  });
+
+  test('webhook deduplication prevents double processing', async () => {
+    const event = { /* same event */ };
+    
+    // Process twice
+    await handleStripeWebhook(event);
+    await handleStripeWebhook(event);
+    
+    // Verify only one subscription created
+    const { count } = await supabase
+      .from('assinaturas')
+      .select('*', { count: 'exact', head: true })
+      .eq('stripe_payment_intent_id', 'pi_test_123');
+    
+    expect(count).toBe(1);
+  });
+});
+```
+
+---
+
+## 10. 🚀 Deployment & Configuration
+
+### 10.1 Environment Variables
+
+#### **Production Configuration**
+```bash
+# Stripe
+STRIPE_PUBLISHABLE_KEY=pk_live_...
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# Test Mode
+STRIPE_TEST_PUBLISHABLE_KEY=pk_test_...
+STRIPE_TEST_SECRET_KEY=sk_test_...
+STRIPE_TEST_WEBHOOK_SECRET=whsec_...
+
+# Database
+DATABASE_URL=postgresql://...
+SUPABASE_URL=https://...
+SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+
+# App
+NEXT_PUBLIC_URL=https://bethub.com
+NEXT_PUBLIC_ENVIRONMENT=production
+
+# Monitoring
+SENTRY_DSN=...
+SLACK_WEBHOOK_URL=...
+ADMIN_EMAILS=admin@bethub.com,owner@bethub.com
+
+# Telegram
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_WEBHOOK_SECRET=...
+```
+
+### 10.2 Deployment Checklist
+
+#### **Pre-Production Checklist**
+```markdown
+## Stripe Configuration
+- [ ] Production Stripe account verified
+- [ ] Connect platform approved for Brazil
+- [ ] Webhook endpoints configured
+- [ ] Tax settings configured for Brazilian market
+
+## Database
+- [ ] Production database provisioned
+- [ ] All migrations applied
+- [ ] Indexes created for performance
+- [ ] RLS policies tested
+- [ ] Backup schedule configured
+
+## Security
+- [ ] Environment variables secured
+- [ ] Webhook signature validation implemented
+- [ ] Rate limiting configured
+- [ ] HTTPS enforced
+- [ ] CORS properly configured
+
+## Monitoring
+- [ ] Error tracking (Sentry) configured
+- [ ] Health check endpoints working
+- [ ] Alert systems tested
+- [ ] Dashboard monitoring set up
+
+## Testing
+- [ ] E2E payment flows tested
+- [ ] Webhook retry logic tested
+- [ ] Error scenarios tested
+- [ ] Load testing completed
+
+## Compliance
+- [ ] LGPD compliance reviewed
+- [ ] Terms of service updated
+- [ ] Privacy policy updated
+- [ ] Stripe compliance requirements met
+```
+
+### 10.3 Monitoring Dashboard
+
+#### **Key Metrics to Track**
+```typescript
+const paymentMetrics = {
+  // Volume Metrics
+  total_transactions_24h: 0,
+  total_revenue_24h: 0,
+  average_transaction_value: 0,
+  
+  // Success Rates
+  payment_success_rate: 0,
+  webhook_processing_success_rate: 0,
+  telegram_integration_success_rate: 0,
+  
+  // Error Rates
+  failed_payments_rate: 0,
+  declined_cards_rate: 0,
+  pix_failures_rate: 0,
+  
+  // Performance
+  average_payment_processing_time: 0,
+  webhook_processing_time: 0,
+  
+  // Business Metrics
+  new_subscriptions_24h: 0,
+  cancelled_subscriptions_24h: 0,
+  churn_rate: 0,
+  
+  // Technical Health
+  stripe_api_response_time: 0,
+  database_query_time: 0,
+  error_rate: 0,
+};
+```
+
+---
+
+## 11. 📅 Implementation Timeline
+
+### 11.1 Sprint Planning
+
+#### **Sprint 1 (Week 1): Foundation**
+- [ ] Stripe Connect account setup and configuration
+- [ ] Database schema for payments (payment_intents, webhook_events)
+- [ ] Basic payment intent creation API
+- [ ] Tipster onboarding flow (Express accounts)
+- [ ] Webhook endpoint structure
+- [ ] Error handling framework
+
+#### **Sprint 2 (Week 2): Core Payment Flow**
+- [ ] Checkout page UI (cartão + PIX)
+- [ ] Stripe Elements integration
+- [ ] Payment confirmation handling
+- [ ] Basic webhook processing (payment.succeeded)
+- [ ] Database synchronization
+- [ ] Success/error pages
+
+#### **Sprint 3 (Week 3): Telegram Integration**
+- [ ] Automatic user addition to Telegram channels
+- [ ] Webhook → Telegram flow integration
+- [ ] Retry mechanism for failed Telegram operations
+- [ ] Subscription status management
+- [ ] Email notifications (payment confirmed)
+
+#### **Sprint 4 (Week 4): Advanced Features**
+- [ ] Split payment validation and testing
+- [ ] Subscription renewal system
+- [ ] Cancellation flow
+- [ ] Tipster financial dashboard
+- [ ] Admin payment monitoring
+- [ ] Comprehensive error handling
+
+#### **Sprint 5 (Week 5): Production Readiness**
+- [ ] Security audit and hardening
+- [ ] Performance optimization
+- [ ] Monitoring and alerting setup
+- [ ] E2E testing complete
+- [ ] Load testing
+- [ ] Production deployment
+
+### 11.2 Success Criteria
+
+#### **MVP Success Metrics**
+- ✅ 95%+ payment success rate
+- ✅ <5 second payment processing time
+- ✅ 100% webhook reliability (with retry)
+- ✅ 99%+ Telegram integration success rate
+- ✅ Zero manual intervention for split payments
+- ✅ <2 hour resolution time for payment issues
+
+#### **Business Metrics (Month 1)**
+- 🎯 50+ successful transactions
+- 🎯 R$ 5,000+ in processed volume
+- 🎯 <2% churn rate from payment issues
+- 🎯 90%+ tipster onboarding completion rate
+
+---
+
+## 12. 🔧 Technical Specifications
+
+### 12.1 Database Schema Extensions
+
+#### **Payment-Specific Tables**
+```sql
+-- Payment Intents Tracking
+CREATE TABLE payment_intents (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    stripe_payment_intent_id VARCHAR(255) UNIQUE NOT NULL,
+    
+    -- Relacionamentos
+    cliente_id UUID REFERENCES profiles(id) NOT NULL,
+    canal_id UUID REFERENCES canais(id) NOT NULL,
+    assinatura_id UUID REFERENCES assinaturas(id),
+    
+    -- Valores
+    amount INTEGER NOT NULL, -- Centavos
+    platform_fee INTEGER NOT NULL, -- Nossa comissão
+    stripe_fee INTEGER DEFAULT 0, -- Taxa do Stripe
+    
+    -- Status e Método
+    status payment_intent_status DEFAULT 'pending',
+    payment_method_type payment_method_type,
+    
+    -- Metadados
+    stripe_metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    succeeded_at TIMESTAMPTZ,
+    failed_at TIMESTAMPTZ
+);
+
+-- Tipos Enum
+CREATE TYPE payment_intent_status AS ENUM (
+    'pending', 'processing', 'succeeded', 'failed', 'cancelled'
+);
+
+CREATE TYPE payment_method_type AS ENUM ('card', 'pix');
+
+-- Webhook Events (Deduplication)
+CREATE TABLE webhook_events (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    stripe_event_id VARCHAR(255) UNIQUE NOT NULL,
+    event_type VARCHAR(100) NOT NULL,
+    status webhook_status DEFAULT 'processing',
+    received_at TIMESTAMPTZ DEFAULT NOW(),
+    processed_at TIMESTAMPTZ,
+    error_message TEXT,
+    retry_count INTEGER DEFAULT 0
+);
+
+CREATE TYPE webhook_status AS ENUM ('processing', 'completed', 'failed');
+
+-- Stripe Account Info (Tipsters)
+ALTER TABLE profiles ADD COLUMN stripe_account_id VARCHAR(255) UNIQUE;
+ALTER TABLE profiles ADD COLUMN stripe_onboarding_completed BOOLEAN DEFAULT FALSE;
+ALTER TABLE profiles ADD COLUMN stripe_charges_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE profiles ADD COLUMN stripe_payouts_enabled BOOLEAN DEFAULT FALSE;
+
+-- Subscription Updates
+ALTER TABLE assinaturas ADD COLUMN stripe_payment_intent_id VARCHAR(255);
+ALTER TABLE assinaturas ADD COLUMN telegram_add_success BOOLEAN DEFAULT FALSE;
+ALTER TABLE assinaturas ADD COLUMN telegram_remove_success BOOLEAN DEFAULT FALSE;
+ALTER TABLE assinaturas ADD COLUMN renewed_at TIMESTAMPTZ;
+
+-- Failed Operations (Retry Queue)
+CREATE TABLE failed_operations (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    operation_type VARCHAR(50) NOT NULL, -- 'add_to_telegram', 'payment_processing', etc
+    operation_data JSONB NOT NULL,
+    error_message TEXT,
+    retry_count INTEGER DEFAULT 0,
+    max_retries INTEGER DEFAULT 5,
+    next_retry_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    resolved_at TIMESTAMPTZ
+);
+
+-- Admin Alerts
+CREATE TABLE admin_alerts (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    alert_type VARCHAR(100) NOT NULL,
+    urgency VARCHAR(20) NOT NULL, -- 'low', 'medium', 'high'
+    data JSONB NOT NULL,
+    channels TEXT[], -- ['email', 'slack']
+    sent_at TIMESTAMPTZ DEFAULT NOW(),
+    acknowledged_at TIMESTAMPTZ,
+    acknowledged_by UUID REFERENCES profiles(id)
+);
+
+-- Error Logs
+CREATE TABLE error_logs (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    error_type VARCHAR(100) NOT NULL,
+    error_message TEXT NOT NULL,
+    error_stack TEXT,
+    context JSONB,
+    user_id UUID REFERENCES profiles(id),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### 12.2 API Endpoints Specification
+
+#### **Payment APIs**
+```typescript
+// POST /api/create-payment-intent
+interface CreatePaymentIntentRequest {
+  canal_id: string;
+  payment_method_type: 'card' | 'pix';
+  save_payment_method?: boolean; // Para renovações futuras
+}
+
+interface CreatePaymentIntentResponse {
+  client_secret: string;
+  amount: number;
+  platform_fee: number;
+  stripe_fee_estimate: number;
+  expires_at: string; // Para PIX
+}
+
+// POST /api/confirm-payment
+interface ConfirmPaymentRequest {
+  payment_intent_id: string;
+  payment_method_id?: string; // Para cartão
+}
+
+interface ConfirmPaymentResponse {
+  status: 'succeeded' | 'requires_action' | 'failed';
+  next_action?: {
+    type: 'pix_display_qr_code';
+    data: string;
+    qr_code_url: string;
+  };
+  error?: {
+    code: string;
+    message: string;
+    user_message: string;
+  };
+}
+
+// GET /api/payment-status/[intent_id]
+interface PaymentStatusResponse {
+  status: 'pending' | 'processing' | 'succeeded' | 'failed';
+  subscription_id?: string;
+  telegram_link?: string;
+  error?: string;
+}
+
+// POST /api/cancel-subscription
+interface CancelSubscriptionRequest {
+  subscription_id: string;
+  reason?: string;
+  immediate?: boolean; // true = cancela agora, false = no final do período
+}
+```
+
+#### **Tipster APIs**
+```typescript
+// POST /api/tipster/create-connect-account
+interface CreateConnectAccountResponse {
+  account_id: string;
+  onboarding_url: string;
+  expires_at: string;
+}
+
+// GET /api/tipster/account-status
+interface AccountStatusResponse {
+  account_id: string;
+  onboarding_completed: boolean;
+  charges_enabled: boolean;
+  payouts_enabled: boolean;
+  requirements: {
+    currently_due: string[];
+    eventually_due: string[];
+    past_due: string[];
+  };
+  next_payout: {
+    amount: number;
+    arrival_date: string;
+  };
+}
+
+// GET /api/tipster/financial-metrics
+interface FinancialMetricsRequest {
+  period: '7d' | '30d' | '90d' | 'ytd' | 'custom';
+  start_date?: string;
+  end_date?: string;
+}
+
+interface FinancialMetricsResponse {
+  total_revenue: number;
+  stripe_fees: number;
+  platform_fees: number;
+  net_received: number;
+  revenue_change: number;
+  transaction_count: number;
+  average_transaction_value: number;
+  revenue_chart: Array<{
+    date: string;
+    gross_revenue: number;
+    net_revenue: number;
+  }>;
+  recent_transactions: Array<TransactionSummary>;
+}
+```
+
+### 12.3 Webhook Event Handlers
+
+#### **Complete Webhook Processing**
+```typescript
+interface WebhookHandler {
+  [key: string]: (event: Stripe.Event) => Promise<void>;
+}
+
+const webhookHandlers: WebhookHandler = {
+  'payment_intent.succeeded': handlePaymentSucceeded,
+  'payment_intent.payment_failed': handlePaymentFailed,
+  'payment_intent.requires_action': handlePaymentRequiresAction,
+  'account.updated': handleAccountUpdated,
+  'account.application.deauthorized': handleAccountDeauthorized,
+  'transfer.created': handleTransferCreated,
+  'transfer.failed': handleTransferFailed,
+  'payout.created': handlePayoutCreated,
+  'payout.failed': handlePayoutFailed,
+};
+
+async function handlePaymentFailed(event: Stripe.Event) {
+  const paymentIntent = event.data.object as Stripe.PaymentIntent;
+  
+  // 1. Atualizar status no banco
+  await supabase
+    .from('payment_intents')
+    .update({
+      status: 'failed',
+      failed_at: new Date().toISOString(),
+    })
+    .eq('stripe_payment_intent_id', paymentIntent.id);
+
+  // 2. Log detalhado do erro
+  await supabase.from('error_logs').insert({
+    error_type: 'payment_failed',
+    error_message: paymentIntent.last_payment_error?.message || 'Unknown error',
+    context: {
+      payment_intent_id: paymentIntent.id,
+      error_code: paymentIntent.last_payment_error?.code,
+      decline_code: paymentIntent.last_payment_error?.decline_code,
+    },
+  });
+
+  // 3. Notificar cliente sobre falha
+  const { data: payment } = await supabase
+    .from('payment_intents')
+    .select('*, profiles(*), canais(*)')
+    .eq('stripe_payment_intent_id', paymentIntent.id)
+    .single();
+
+  if (payment) {
+    await sendEmail({
+      to: payment.profiles.email,
+      template: 'payment_failed',
+      data: {
+        canal_nome: payment.canais.nome,
+        error_message: getUserFriendlyMessage(
+          paymentIntent.last_payment_error?.code
+        ),
+        retry_url: `${process.env.NEXT_PUBLIC_URL}/checkout/${payment.canal_id}`,
+      },
+    });
+  }
+
+  // 4. Alertar se taxa de falha estiver alta
+  const failureRate = await calculateRecentFailureRate();
+  if (failureRate > 0.1) { // >10% de falha
+    await alertAdmins('high_failure_rate', {
+      failure_rate: failureRate,
+      recent_failures: await getRecentFailures(),
+    });
+  }
+}
+
+async function handleTransferFailed(event: Stripe.Event) {
+  const transfer = event.data.object as Stripe.Transfer;
+  
+  // Transfer falhou - dinheiro não chegou ao tipster
+  await alertAdmins('transfer_failed', {
+    transfer_id: transfer.id,
+    amount: transfer.amount,
+    destination_account: transfer.destination,
+    failure_message: transfer.failure_message,
+  });
+
+  // Marcar para retry manual
+  await supabase.from('failed_operations').insert({
+    operation_type: 'transfer_retry',
+    operation_data: {
+      transfer_id: transfer.id,
+      destination_account: transfer.destination,
+      amount: transfer.amount,
+    },
+    error_message: transfer.failure_message,
+  });
+}
+```
+
+### 12.4 Security Implementation
+
+#### **Request Validation Middleware**
+```typescript
+// middleware/payment-security.ts
+export async function validatePaymentRequest(request: Request) {
+  // 1. Rate limiting por usuário
+  const userId = await getUserIdFromRequest(request);
+  const rateLimitKey = `payment_attempts:${userId}`;
+  
+  const attempts = await redis.incr(rateLimitKey);
+  if (attempts === 1) {
+    await redis.expire(rateLimitKey, 300); // 5 minutos
+  }
+  
+  if (attempts > 5) {
+    throw new Error('Too many payment attempts. Please wait 5 minutes.');
+  }
+
+  // 2. Validar origem da requisição
+  const origin = request.headers.get('origin');
+  const allowedOrigins = [
+    process.env.NEXT_PUBLIC_URL,
+    'https://bethub.com',
+    'https://www.bethub.com',
+  ];
+  
+  if (!allowedOrigins.includes(origin)) {
+    throw new Error('Invalid request origin');
+  }
+
+  // 3. Validar CSRF token
+  const csrfToken = request.headers.get('x-csrf-token');
+  const validToken = await validateCSRFToken(csrfToken, userId);
+  
+  if (!validToken) {
+    throw new Error('Invalid CSRF token');
+  }
+
+  // 4. Verificar se usuário pode fazer pagamento
+  const user = await getUser();
+  if (!user.telegram_username) {
+    throw new Error('Telegram username required for payments');
+  }
+
+  return { user, rateLimitRemaining: 5 - attempts };
+}
+
+// Webhook signature validation
+export async function validateWebhookSignature(
+  body: string,
+  signature: string
+): Promise<Stripe.Event> {
+  try {
+    return stripe.webhooks.constructEvent(
+      body,
+      signature,
+      process.env.STRIPE_WEBHOOK_SECRET!
+    );
+  } catch (error) {
+    throw new Error('Invalid webhook signature');
+  }
+}
+```
+
+#### **Data Encryption for Sensitive Information**
+```typescript
+// lib/encryption.ts
+import { createCipher, createDecipher } from 'crypto';
+
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY!;
+
+export function encryptSensitiveData(data: string): string {
+  const cipher = createCipher('aes-256-cbc', ENCRYPTION_KEY);
+  let encrypted = cipher.update(data, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return encrypted;
+}
+
+export function decryptSensitiveData(encryptedData: string): string {
+  const decipher = createDecipher('aes-256-cbc', ENCRYPTION_KEY);
+  let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
+
+// Uso para dados sensíveis do tipster
+export async function storeTipsterBankInfo(tipsterId: string, bankInfo: any) {
+  const encryptedInfo = encryptSensitiveData(JSON.stringify(bankInfo));
+  
+  await supabase
+    .from('tipster_bank_info')
+    .upsert({
+      tipster_id: tipsterId,
+      encrypted_bank_info: encryptedInfo,
+      updated_at: new Date().toISOString(),
+    });
+}
+```
+
+---
+
+## 13. 📈 Performance Optimization
+
+### 13.1 Caching Strategy
+
+#### **Payment Intent Caching**
+```typescript
+// lib/cache.ts
+import { Redis } from '@upstash/redis';
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+
+export async function cachePaymentIntent(
+  intentId: string,
+  data: any,
+  ttlSeconds: number = 1800 // 30 minutos
+) {
+  const key = `payment_intent:${intentId}`;
+  await redis.setex(key, ttlSeconds, JSON.stringify(data));
+}
+
+export async function getCachedPaymentIntent(
+  intentId: string
+): Promise<any | null> {
+  const key = `payment_intent:${intentId}`;
+  const cached = await redis.get(key);
+  return cached ? JSON.parse(cached as string) : null;
+}
+
+// Cache para métricas de tipster (dados que mudam pouco)
+export async function cacheTipsterMetrics(
+  tipsterId: string,
+  period: string,
+  metrics: any
+) {
+  const key = `tipster_metrics:${tipsterId}:${period}`;
+  // Cache por 1 hora - métricas não precisam ser real-time
+  await redis.setex(key, 3600, JSON.stringify(metrics));
+}
+
+export async function getCachedTipsterMetrics(
+  tipsterId: string,
+  period: string
+): Promise<any | null> {
+  const key = `tipster_metrics:${tipsterId}:${period}`;
+  const cached = await redis.get(key);
+  return cached ? JSON.parse(cached as string) : null;
+}
+```
+
+#### **Database Query Optimization**
+```typescript
+// Queries otimizadas para dashboard
+const optimizedQueries = {
+  // Em vez de múltiplas queries, uma só com join
+  getTipsterDashboardData: async (tipsterId: string) => {
+    return await supabase
+      .from('canais')
+      .select(`
+        id,
+        nome,
+        preco_mensal,
+        created_at,
+        assinaturas!inner(
+          id,
+          status,
+          created_at,
+          preco_pago,
+          cliente_id
+        ),
+        apostas(
+          id,
+          status,
+          lucro_calculado,
+          stake
+        )
+      `)
+      .eq('tipster_id', tipsterId)
+      .eq('assinaturas.status', 'ativa');
+  },
+
+  // Query com índices otimizados
+  getPaymentHistory: async (tipsterId: string, limit: number = 50) => {
+    return await supabase
+      .from('payment_intents')
+      .select(`
+        id,
+        amount,
+        platform_fee,
+        stripe_fee,
+        created_at,
+        status,
+        canais!inner(nome),
+        profiles!inner(nome_completo)
+      `)
+      .eq('canais.tipster_id', tipsterId)
+      .eq('status', 'succeeded')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+  },
+};
+
+// Índices necessários no banco
+const requiredIndexes = `
+-- Performance crítica para dashboard tipster
+CREATE INDEX CONCURRENTLY idx_payment_intents_tipster_status 
+ON payment_intents (canal_id, status, created_at DESC);
+
+-- Para métricas financeiras
+CREATE INDEX CONCURRENTLY idx_assinaturas_tipster_active 
+ON assinaturas (canal_id, status) 
+WHERE status = 'ativa';
+
+-- Para webhook processing
+CREATE INDEX CONCURRENTLY idx_webhook_events_processing 
+ON webhook_events (status, received_at) 
+WHERE status = 'processing';
+`;
+```
+
+### 13.2 Background Job Processing
+
+#### **Queue System para Operações Não-Críticas**
+```typescript
+// lib/queue.ts
+interface JobData {
+  type: string;
+  payload: any;
+  priority: 'high' | 'medium' | 'low';
+  maxRetries: number;
+}
+
+export async function enqueueJob(job: JobData) {
+  const jobId = crypto.randomUUID();
+  
+  await redis.lpush('job_queue', JSON.stringify({
+    id: jobId,
+    ...job,
+    enqueuedAt: new Date().toISOString(),
+    retries: 0,
+  }));
+
+  // Para jobs de alta prioridade, processar imediatamente
+  if (job.priority === 'high') {
+    await processJobs();
+  }
+
+  return jobId;
+}
+
+export async function processJobs() {
+  const jobStr = await redis.brpop('job_queue', 5); // 5s timeout
+  if (!jobStr) return;
+
+  const job = JSON.parse(jobStr[1]);
+
+  try {
+    await executeJob(job);
+    
+    // Job completado com sucesso
+    await redis.sadd('completed_jobs', job.id);
+    
+  } catch (error) {
+    console.error('Job failed:', error);
+    
+    if (job.retries < job.maxRetries) {
+      // Retry com backoff exponencial
+      const delay = Math.pow(2, job.retries) * 1000;
+      setTimeout(async () => {
+        await redis.lpush('job_queue', JSON.stringify({
+          ...job,
+          retries: job.retries + 1,
+        }));
+      }, delay);
+    } else {
+      // Job falhou definitivamente
+      await redis.sadd('failed_jobs', job.id);
+      await alertAdmins('job_failed', { job, error: error.message });
+    }
+  }
+}
+
+async function executeJob(job: any) {
+  switch (job.type) {
+    case 'send_email':
+      await sendEmail(job.payload);
+      break;
+    
+    case 'update_metrics':
+      await updateCachedMetrics(job.payload);
+      break;
+    
+    case 'process_renewal':
+      await processSubscriptionRenewal(job.payload);
+      break;
+    
+    case 'cleanup_old_data':
+      await cleanupOldData(job.payload);
+      break;
+      
+    default:
+      throw new Error(`Unknown job type: ${job.type}`);
+  }
+}
+
+// Exemplos de uso
+export async function scheduleEmailNotification(
+  templateName: string,
+  recipient: string,
+  data: any
+) {
+  await enqueueJob({
+    type: 'send_email',
+    payload: { templateName, recipient, data },
+    priority: 'medium',
+    maxRetries: 3,
+  });
+}
+
+export async function scheduleMetricsUpdate(tipsterId: string) {
+  await enqueueJob({
+    type: 'update_metrics',
+    payload: { tipsterId },
+    priority: 'low',
+    maxRetries: 2,
+  });
+}
+```
+
+---
+
+## 14. 🔍 Monitoring & Analytics
+
+### 14.1 Business Intelligence Dashboard
+
+#### **Admin Analytics Overview**
+```typescript
+const AdminPaymentAnalytics = () => {
+  const [metrics, setMetrics] = useState(null);
+  const [period, setPeriod] = useState('30d');
+
+  const fetchAnalytics = async () => {
+    const response = await fetch(`/api/admin/payment-analytics?period=${period}`);
+    const data = await response.json();
+    setMetrics(data);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <KPICard
+          title="Volume Total"
+          value={formatCurrency(metrics?.total_volume)}
+          change={metrics?.volume_change}
+          icon={<TrendingUp />}
+        />
+        <KPICard
+          title="Transações"
+          value={metrics?.transaction_count?.toLocaleString()}
+          change={metrics?.transaction_change}
+          icon={<CreditCard />}
+        />
+        <KPICard
+          title="Taxa de Sucesso"
+          value={`${metrics?.success_rate}%`}
+          change={metrics?.success_rate_change}
+          icon={<CheckCircle />}
+        />
+        <KPICard
+          title="Receita Plataforma"
+          value={formatCurrency(metrics?.platform_revenue)}
+          change={metrics?.platform_revenue_change}
+          icon={<Building />}
+        />
+      </div>
+
+      {/* Payment Methods Breakdown */}
+      <div className="grid md:grid-cols-2 gap-6">
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Por Método de Pagamento</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <PieChart>
+              <Pie
+                data={metrics?.payment_methods}
+                cx="50%"
+                cy="50%"
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              >
+                {metrics?.payment_methods?.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value) => formatCurrency(value)} />
+            </PieChart>
+          </ResponsiveContainer>
+        </Card>
+
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Evolução Diária</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={metrics?.daily_evolution}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip formatter={(value) => formatCurrency(value)} />
+              <Line 
+                type="monotone" 
+                dataKey="volume" 
+                stroke="#8884d8" 
+                name="Volume"
+              />
+              <Line 
+                type="monotone" 
+                dataKey="transactions" 
+                stroke="#82ca9d" 
+                name="Transações"
+                yAxisId="right"
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </Card>
+      </div>
+
+      {/* Error Analysis */}
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4">Análise de Erros</h3>
+        <div className="space-y-4">
+          {metrics?.error_analysis?.map((error, index) => (
+            <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded">
+              <div>
+                <div className="font-medium">{error.error_type}</div>
+                <div className="text-sm text-gray-600">{error.description}</div>
+              </div>
+              <div className="text-right">
+                <div className="font-medium">{error.count} ocorrências</div>
+                <div className="text-sm text-gray-600">{error.percentage}% do total</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* Real-time Status */}
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4">Status em Tempo Real</h3>
+        <div className="grid md:grid-cols-3 gap-4">
+          <StatusIndicator
+            label="Stripe API"
+            status={metrics?.stripe_status}
+            lastChecked={metrics?.stripe_last_check}
+          />
+          <StatusIndicator
+            label="Webhook Processing"
+            status={metrics?.webhook_status}
+            lastChecked={metrics?.webhook_last_check}
+          />
+          <StatusIndicator
+            label="Telegram Integration"
+            status={metrics?.telegram_status}
+            lastChecked={metrics?.telegram_last_check}
+          />
+        </div>
+      </Card>
+    </div>
+  );
+};
+```
+
+### 14.2 Custom Metrics Collection
+
+#### **Business Metrics Tracking**
+```typescript
+// lib/metrics.ts
+export class PaymentMetrics {
+  static async trackPaymentAttempt(
+    paymentIntentId: string,
+    method: 'card' | 'pix',
+    amount: number,
+    tipsterId: string
+  ) {
+    await supabase.from('payment_metrics').insert({
+      event_type: 'payment_attempt',
+      payment_intent_id: paymentIntentId,
+      payment_method: method,
+      amount,
+      tipster_id: tipsterId,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  static async trackPaymentSuccess(
+    paymentIntentId: string,
+    processingTime: number,
+    telegramSuccess: boolean
+  ) {
+    await supabase.from('payment_metrics').insert({
+      event_type: 'payment_success',
+      payment_intent_id: paymentIntentId,
+      processing_time_ms: processingTime,
+      telegram_success: telegramSuccess,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  static async trackPaymentFailure(
+    paymentIntentId: string,
+    errorCode: string,
+    errorMessage: string
+  ) {
+    await supabase.from('payment_metrics').insert({
+      event_type: 'payment_failure',
+      payment_intent_id: paymentIntentId,
+      error_code: errorCode,
+      error_message: errorMessage,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  static async trackTipsterOnboarding(
+    tipsterId: string,
+    stage: 'started' | 'completed' | 'abandoned',
+    timeSpent?: number
+  ) {
+    await supabase.from('onboarding_metrics').insert({
+      tipster_id: tipsterId,
+      stage,
+      time_spent_seconds: timeSpent,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // Métricas agregadas para dashboard
+  static async getPaymentMetrics(period: string) {
+    const startDate = calculateStartDate(period);
+    
+    const { data: rawData } = await supabase
+      .from('payment_metrics')
+      .select('*')
+      .gte('timestamp', startDate.toISOString());
+
+    return {
+      total_attempts: rawData?.filter(m => m.event_type === 'payment_attempt').length || 0,
+      successful_payments: rawData?.filter(m => m.event_type === 'payment_success').length || 0,
+      failed_payments: rawData?.filter(m => m.event_type === 'payment_failure').length || 0,
+      average_processing_time: this.calculateAverageProcessingTime(rawData),
+      error_breakdown: this.getErrorBreakdown(rawData),
+      payment_method_distribution: this.getPaymentMethodDistribution(rawData),
+    };
+  }
+
+  private static calculateAverageProcessingTime(data: any[]): number {
+    const successEvents = data?.filter(m => 
+      m.event_type === 'payment_success' && m.processing_time_ms
+    ) || [];
+    
+    if (successEvents.length === 0) return 0;
+    
+    const totalTime = successEvents.reduce((sum, event) => 
+      sum + event.processing_time_ms, 0
+    );
+    
+    return Math.round(totalTime / successEvents.length);
+  }
+
+  private static getErrorBreakdown(data: any[]): Array<{
+    error_code: string;
+    count: number;
+    percentage: number;
+  }> {
+    const failureEvents = data?.filter(m => m.event_type === 'payment_failure') || [];
+    const totalFailures = failureEvents.length;
+    
+    if (totalFailures === 0) return [];
+    
+    const errorCounts = failureEvents.reduce((acc, event) => {
+      acc[event.error_code] = (acc[event.error_code] || 0) + 1;
+      return acc;
+    }, {});
+    
+    return Object.entries(errorCounts)
+      .map(([error_code, count]) => ({
+        error_code,
+        count: count as number,
+        percentage: Math.round(((count as number) / totalFailures) * 100),
+      }))
+      .sort((a, b) => b.count - a.count);
+  }
+}
+
+// Uso nos handlers
+export async function createPaymentIntentWithMetrics(data: any) {
+  const startTime = Date.now();
+  
+  try {
+    const paymentIntent = await stripe.paymentIntents.create(data);
+    
+    await PaymentMetrics.trackPaymentAttempt(
+      paymentIntent.id,
+      data.payment_method_types[0],
+      data.amount,
+      data.metadata.tipster_id
+    );
+    
+    return paymentIntent;
+    
+  } catch (error) {
+    await PaymentMetrics.trackPaymentFailure(
+      data.metadata.temp_id || 'unknown',
+      error.code || 'unknown_error',
+      error.message
+    );
+    
+    throw error;
+  }
+}
+```
+
+---
+
+## 15. 🎯 Success Metrics & KPIs
+
+### 15.1 Technical KPIs
+
+#### **Performance Targets**
+```typescript
+const technicalKPIs = {
+  // Payment Processing
+  payment_success_rate: {
+    target: 95,
+    critical_threshold: 90,
+    measurement: 'percentage',
+    period: '24h',
+  },
+  
+  average_payment_processing_time: {
+    target: 3000, // 3 segundos
+    critical_threshold: 10000, // 10 segundos
+    measurement: 'milliseconds',
+    period: '1h',
+  },
+  
+  webhook_processing_success_rate: {
+    target: 99.9,
+    critical_threshold: 98,
+    measurement: 'percentage',
+    period: '24h',
+  },
+  
+  telegram_integration_success_rate: {
+    target: 99,
+    critical_threshold: 95,
+    measurement: 'percentage',
+    period: '24h',
+  },
+  
+  // Error Rates
+  api_error_rate: {
+    target: 1,
+    critical_threshold: 5,
+    measurement: 'percentage',
+    period: '1h',
+  },
+  
+  retry_success_rate: {
+    target: 80,
+    critical_threshold: 60,
+    measurement: 'percentage',
+    period: '24h',
+  },
+  
+  // Security
+  fraud_detection_accuracy: {
+    target: 95,
+    critical_threshold: 85,
+    measurement: 'percentage',
+    period: '7d',
+  },
+};
+```
+
+### 15.2 Business KPIs
+
+#### **Revenue & Growth Metrics**
+```typescript
+const businessKPIs = {
+  // Revenue
+  monthly_recurring_revenue: {
+    target: 50000, // R$ 50k/mês
+    measurement: 'currency',
+    period: '30d',
+  },
+  
+  platform_commission_revenue: {
+    target: 5000, // R$ 5k/mês em comissão
+    measurement: 'currency',
+    period: '30d',
+  },
+  
+  // Conversion
+  checkout_conversion_rate: {
+    target: 75, // 75% dos que chegam no checkout pagam
+    critical_threshold: 50,
+    measurement: 'percentage',
+    period: '7d',
+  },
+  
+  tipster_onboarding_completion_rate: {
+    target: 90,
+    critical_threshold: 70,
+    measurement: 'percentage',
+    period: '30d',
+  },
+  
+  // Retention
+  payment_method_save_rate: {
+    target: 60, // 60% salvam método para próxima vez
+    measurement: 'percentage',
+    period: '30d',
+  },
+  
+  subscription_renewal_rate: {
+    target: 85,
+    critical_threshold: 70,
+    measurement: 'percentage',
+    period: '30d',
+  },
+  
+  // User Experience
+  payment_abandonment_rate: {
+    target: 15, // Máximo 15% abandonam no checkout
+    critical_threshold: 25,
+    measurement: 'percentage',
+    period: '7d',
+  },
+  
+  customer_support_tickets_payment_related: {
+    target: 5, // Máximo 5% dos tickets sobre pagamento
+    critical_threshold: 10,
+    measurement: 'percentage',
+    period: '30d',
+  },
+};
+```
+
+### 15.3 Automated Alerting Rules
+
+#### **Alert Configuration**
+```typescript
+const alertRules = [
+  {
+    name: 'High Payment Failure Rate',
+    condition: 'payment_success_rate < 90',
+    period: '1h',
+    urgency: 'high',
+    channels: ['slack', 'email'],
+    action: 'investigate_payment_issues',
+  },
+  
+  {
+    name: 'Webhook Processing Delays',
+    condition: 'webhook_processing_time > 30s',
+    period: '5m',
+    urgency: 'high',
+    channels: ['slack'],
+    action: 'check_webhook_queue',
+  },
+  
+  {
+    name: 'Stripe API Issues',
+    condition: 'stripe_api_error_rate > 5%',
+    period: '15m',
+    urgency: 'critical',
+    channels: ['slack', 'email', 'sms'],
+    action: 'check_stripe_status',
+  },
+  
+  {
+    name: 'Telegram Integration Failures',
+    condition: 'telegram_success_rate < 95%',
+    period: '30m',
+    urgency: 'medium',
+    channels: ['slack'],
+    action: 'check_telegram_bot',
+  },
+  
+  {
+    name: 'Revenue Drop',
+    condition: 'daily_revenue < 50% of 7d_average',
+    period: '1d',
+    urgency: 'medium',
+    channels: ['email'],
+    action: 'analyze_revenue_trends',
+  },
+  
+  {
+    name: 'High Checkout Abandonment',
+    condition: 'checkout_abandonment_rate > 30%',
+    period: '4h',
+    urgency: 'medium',
+    channels: ['slack'],
+    action: 'review_checkout_flow',
+  },
+];
+```
+
+---
+
+## 16. 🔚 Conclusão e Próximos Passos
+
+### 16.1 Resumo Executivo
+
+Este PRD define uma implementação completa do sistema de pagamentos BetLink utilizando **Stripe Connect**, oferecendo:
+
+#### **✅ Benefícios Principais**
+1. **Split Automático**: Divisão de receita sem intervenção manual
+2. **Acesso Instantâneo**: Cliente paga → acesso imediato ao Telegram
+3. **Compliance Automático**: Stripe cuida de toda regulamentação
+4. **Escalabilidade Global**: Preparado para expansão internacional
+5. **Transparência Total**: Todos os pagamentos auditáveis
+6. **UX Otimizada**: Checkout brasileiro (cartão + PIX)
+
+#### **💰 Impacto Financeiro Esperado**
+- **Comissão da plataforma**: 10% sobre cada transação
+- **Taxa de conversão**: 75%+ no checkout
+- **Tempo de implementação**: 5 semanas vs 12+ (solução custom)
+- **Custo de manutenção**: Mínimo (Stripe cuida da infraestrutura)
+
+#### **🔧 Complexidade Técnica**
+- **Baixa**: Solução madura e bem documentada
+- **APIs simples**: Integração direta com Stripe Connect
+- **Monitoring**: Dashboards prontos para métricas críticas
+- **Suporte**: Time de suporte Stripe 24/7
+
+### 16.2 Riscos Mitigados
+
+#### **Riscos Técnicos**
+- ✅ **Webhook reliability**: Sistema de retry automático
+- ✅ **Telegram integration**: Fallback e monitoramento
+- ✅ **Payment security**: PCI compliance automático
+- ✅ **Scale issues**: Stripe processa bilhões de transações
+
+#### **Riscos de Negócio**
+- ✅ **Regulatory compliance**: Stripe licenciado no Brasil
+- ✅ **Payment method coverage**: Cartão + PIX = 95% do mercado
+- ✅ **Fraud protection**: Machine learning nativo
+- ✅ **International expansion**: Pronto para 40+ países
+
+### 16.3 Implementação Imediata
+
+#### **Primeiros Passos (Esta Semana)**
+1. **Stripe Account**: Criar conta Connect para BetLink
+2. **Repository Setup**: Configurar ambiente de desenvolvimento
+3. **Database Schema**: Implementar tabelas de pagamento
+4. **Basic API**: Endpoint de criação de Payment Intent
+
+#### **Sprint 1 Deliverables**
+- [ ] Conta Stripe Connect configurada e aprovada
+- [ ] Tipster onboarding flow funcional
+- [ ] Payment Intent creation API
+- [ ] Webhook endpoint básico
+- [ ] Testes unitários para funções críticas
+
+### 16.4 Métricas de Sucesso (30 dias pós-launch)
+
+#### **Metas Técnicas**
+- 🎯 95%+ taxa de sucesso em pagamentos
+- 🎯 <3s tempo médio de processamento
+- 🎯 99%+ reliability de webhooks
+- 🎯 <2h tempo de resolução para issues críticos
+
+#### **Metas de Negócio**
+- 🎯 50+ transações processadas com sucesso
+- 🎯 R$ 5,000+ em volume processado
+- 🎯 75%+ conversão no checkout
+- 🎯 <5% churn relacionado a problemas de pagamento
+
+### 16.5 Roadmap Futuro
+
+#### **v1.1 (Mês 2-3)**
+- **PIX Automático**: Assinaturas recorrentes via PIX
+- **Multi-currency**: Preparação para expansão internacional
+- **Advanced Analytics**: Dashboard de BI mais robusto
+- **Mobile App**: Checkout otimizado para mobile
+
+#### **v2.0 (Mês 4-6)**
+- **Marketplace Global**: Expansão para outros países
+- **Fraud Prevention 2.0**: ML customizado para nosso modelo
+- **Advanced Payouts**: Instant payouts para tipsters premium
+- **White-label**: Solução para outros marketplaces
+
+---
+
+## 🚀 **Go-Live Strategy**
+
+### **Fase 1: Soft Launch (Semana 6)**
+- 10 tipsters beta
+- 100 clientes máximo
+- Monitoramento intensivo
+- Feedback collection
+
+### **Fase 2: Gradual Rollout (Semana 8)**
+- 50 tipsters
+- 1000 clientes
+- Feature flags para rollback rápido
+- Metrics validation
+
+### **Fase 3: Full Launch (Semana 10)**
+- Todos os tipsters
+- Marketing campaign
+- Full monitoring stack
+- Success celebration! 🎉
+
+---
+
+**Este PRD serve como guia completo para implementação do sistema de pagamentos BetLink. Todos os detalhes técnicos, fluxos de negócio e métricas de sucesso estão definidos para garantir uma implementação segura, escalável e lucrativa.**
+
+**Próximo passo**: Aprovação da stack técnica e início do Sprint 1! 🚀

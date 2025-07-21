@@ -1,0 +1,623 @@
+# BetLink - Workflow Detalhado por Feature
+
+## 📋 Visão Geral
+
+Cada feature é uma evolução incremental e testável do aplicativo. Este workflow garante que cada implementação seja isolada, testável e não quebre funcionalidades existentes.
+
+---
+
+## 🔄 As 6 Etapas do Workflow
+
+### **1️⃣ PLANEJAMENTO** 📋
+
+#### Objetivo
+Criar um contrato claro e específico do que será construído, com teste humano bem definido.
+
+#### Template de Planejamento
+
+```markdown
+# Feature: [Nome da Feature]
+
+## 1. Teste Humano
+**O que testar**: [Descrição clara do que o usuário deve conseguir fazer]
+**Como testar**:
+1. [Passo 1]
+2. [Passo 2]
+3. [Passo 3]
+
+**Resultado esperado**: [Descrição ou screenshot do resultado final]
+
+## 2. Dependências
+- **Features anteriores**: [Lista de features que devem estar funcionando]
+- **Arquivos existentes**: 
+  - `/path/to/file1.ts`
+  - `/path/to/file2.tsx`
+- **Bibliotecas necessárias**: 
+  - `@supabase/supabase-js`
+  - `react-hook-form`
+
+## 3. Guardrails
+### NÃO MODIFICAR
+- `/app/layout.tsx` - Layout principal
+- `/lib/supabase/client.ts` - Configuração base
+- [Outros arquivos críticos]
+
+### DEVE MANTER
+- Navegação existente funcionando
+- Autenticação (se já implementada)
+- [Outros comportamentos]
+
+### PODE CRIAR
+- `/app/[nova-rota]/page.tsx`
+- `/components/features/[feature]/`
+- [Outros arquivos permitidos]
+
+### DEVE REUTILIZAR
+- Componente `Button` de `/components/ui/`
+- Hook `useAuth` de `/hooks/`
+- [Outros recursos existentes]
+
+## 4. Contexto Técnico
+### Quais Documentos devo usar de contexto?
+
+
+### Schema do Banco (apenas relevante)
+```sql
+-- Apenas tabelas necessárias para esta feature
+CREATE TABLE profiles (
+  id UUID PRIMARY KEY,
+  ...
+);
+```
+
+### APIs/Funções Disponíveis
+```typescript
+// Exemplo de função disponível
+async function getUser(id: string) { ... }
+```
+
+### Padrões do Projeto
+- Nomenclatura: PascalCase para componentes
+- Imports: Ordem específica (ver guia)
+- [Outros padrões]
+
+## 5. Estimativa
+- **Complexidade**: Baixa/Média/Alta
+- **Tempo estimado**: X horas
+- **Riscos identificados**: [Lista]
+```
+
+---
+
+### **2️⃣ EXECUÇÃO** 🚀
+
+#### Estratégias para Implementação
+
+##### A. Sistema de Logs Estruturados
+```typescript
+// Padrão de logs para rastreabilidade
+const FEATURE_NAME = '[Feature: NomeDaFeature]';
+
+console.log(`${FEATURE_NAME} Iniciando processo...`);
+console.error(`${FEATURE_NAME} Erro encontrado:`, error);
+console.warn(`${FEATURE_NAME} Atenção:`, warning);
+
+// Em componentes React
+useEffect(() => {
+  console.log(`${FEATURE_NAME} Componente montado`);
+  return () => console.log(`${FEATURE_NAME} Componente desmontado`);
+}, []);
+```
+
+##### B. Comentários de Guardrail
+```typescript
+/**
+ * @feature: Login
+ * @guardrail: Este arquivo é base - NÃO MODIFICAR
+ * @dependencies: supabase, react-hook-form
+ * @created: Feature 1
+ */
+
+// No topo de arquivos críticos
+// @protected: Não modificar sem aprovação
+```
+
+##### C. Error Boundaries por Feature
+```typescript
+// components/features/[feature]/error-boundary.tsx
+export function FeatureErrorBoundary({ 
+  children, 
+  feature 
+}: { 
+  children: React.ReactNode;
+  feature: string;
+}) {
+  return (
+    <ErrorBoundary
+      fallback={<div>Erro na feature: {feature}</div>}
+      onError={(error) => {
+        console.error(`[Feature: ${feature}] Erro capturado:`, error);
+      }}
+    >
+      {children}
+    </ErrorBoundary>
+  );
+}
+```
+
+##### D. Feature Flags
+```typescript
+// config/feature-flags.ts
+export const FEATURES = {
+  AUTH: true,           // ✅ Implementado
+  CANAIS_LIST: true,    // ✅ Implementado
+  PAYMENT: false,       // 🚧 Em desenvolvimento
+  TELEGRAM_BOT: false,  // ⏳ Planejado
+} as const;
+
+// Uso no código
+if (FEATURES.PAYMENT) {
+  return <PaymentComponent />;
+}
+return <ComingSoon feature="Pagamentos" />;
+```
+
+---
+
+### **3️⃣ TESTE IA** 🤖
+
+#### Template de Teste Playwright
+
+```typescript
+// tests/features/[nome-feature].spec.ts
+import { test, expect } from '@playwright/test';
+
+const FEATURE_NAME = 'Nome da Feature';
+
+test.describe(`Feature: ${FEATURE_NAME}`, () => {
+  // Setup antes de todos os testes
+  test.beforeEach(async ({ page }) => {
+    console.log(`[Test: ${FEATURE_NAME}] Iniciando teste`);
+    await page.goto('/');
+  });
+
+  test('Teste principal: [descrição do que deve funcionar]', async ({ page }) => {
+    // Arrange - Preparar
+    await page.waitForLoadState('networkidle');
+    
+    // Act - Agir
+    await page.click('[data-testid="botao-principal"]');
+    
+    // Assert - Verificar
+    await expect(page.locator('[data-testid="resultado"]')).toBeVisible();
+    
+    // Log de sucesso
+    console.log(`✅ ${FEATURE_NAME}: Teste principal passou`);
+  });
+
+  test('Não deve quebrar features anteriores', async ({ page }) => {
+    // Verificar que navegação ainda funciona
+    await expect(page.locator('nav')).toBeVisible();
+    
+    // Verificar que outras rotas ainda carregam
+    await page.goto('/dashboard');
+    await expect(page).not.toHaveURL('/404');
+    
+    console.log(`✅ ${FEATURE_NAME}: Features anteriores OK`);
+  });
+
+  // Teste de erro
+  test('Deve mostrar erro apropriado quando falhar', async ({ page }) => {
+    // Simular erro
+    await page.route('**/api/**', route => route.abort());
+    
+    // Verificar tratamento
+    await page.click('[data-testid="acao-que-falha"]');
+    await expect(page.locator('.error-message')).toBeVisible();
+    
+    console.log(`✅ ${FEATURE_NAME}: Tratamento de erro OK`);
+  });
+});
+```
+
+#### Script de Auto-correção
+
+```typescript
+// scripts/test-and-fix.ts
+async function testAndFix() {
+  console.log('🤖 Executando testes automatizados...');
+  
+  const result = await runTests();
+  
+  if (!result.success) {
+    console.log('❌ Erros encontrados. Tentando corrigir...');
+    
+    for (const error of result.errors) {
+      if (error.type === 'MISSING_IMPORT') {
+        await fixMissingImport(error);
+      } else if (error.type === 'TYPE_ERROR') {
+        await fixTypeError(error);
+      }
+      // ... outras correções automáticas
+    }
+    
+    // Testar novamente
+    const retryResult = await runTests();
+    if (retryResult.success) {
+      console.log('✅ Erros corrigidos automaticamente!');
+    } else {
+      console.log('⚠️ Alguns erros precisam de intervenção manual');
+    }
+  }
+}
+```
+
+---
+
+### **4️⃣ TESTE HUMANO** 👤
+
+#### Checklist de Validação
+
+```markdown
+## Checklist de Teste Manual - Feature: [Nome]
+
+### Funcionalidade Principal
+- [ ] A feature funciona conforme o teste definido no planejamento?
+- [ ] Todos os casos de uso estão cobertos?
+- [ ] A UX está intuitiva e sem bugs visuais?
+
+### Regressão
+- [ ] Features anteriores continuam funcionando?
+- [ ] Navegação entre páginas está normal?
+- [ ] Não há erros no console?
+
+### Performance
+- [ ] Página carrega em menos de 3 segundos?
+- [ ] Não há re-renders desnecessários?
+- [ ] Imagens e assets estão otimizados?
+
+### Responsividade
+- [ ] Desktop (1920x1080) ✓
+- [ ] Laptop (1366x768) ✓
+- [ ] Tablet (768x1024) ✓
+- [ ] Mobile (375x667) ✓
+
+### Acessibilidade
+- [ ] Navegação por teclado funciona?
+- [ ] Cores têm contraste adequado?
+- [ ] Elementos têm labels apropriados?
+
+### Segurança
+- [ ] Dados sensíveis não aparecem em logs?
+- [ ] Autenticação/autorização funcionando?
+- [ ] Inputs estão validados?
+
+### Observações
+[Espaço para notas durante o teste]
+```
+
+---
+
+### **5️⃣ REFINAMENTO** 🔧
+
+#### Processo de Refinamento
+
+```markdown
+## Refinamento - Feature: [Nome]
+
+### 1. Problemas Identificados
+
+#### 🔴 Críticos (Bloqueiam release)
+1. **Problema**: [Descrição]
+   - **Impacto**: [O que está quebrado]
+   - **Solução proposta**: [Como corrigir]
+   - **Status**: ⏳ Pendente / ✅ Resolvido
+
+#### 🟡 Importantes (Devem ser corrigidos)
+1. **Problema**: [Descrição]
+   - **Impacto**: [O que afeta]
+   - **Solução proposta**: [Como melhorar]
+   - **Status**: ⏳ Pendente / ✅ Resolvido
+
+#### 🟢 Nice-to-have (Melhorias futuras)
+1. **Melhoria**: [Descrição]
+   - **Benefício**: [Por que fazer]
+   - **Complexidade**: Baixa/Média/Alta
+
+### 2. Log de Correções
+```
+[Data/Hora] - Corrigido: [descrição] - [arquivo modificado]
+[Data/Hora] - Testado: [o que foi verificado] - OK ✅
+```
+
+### 3. Decisões Técnicas
+- **Decisão**: [O que foi decidido]
+  **Motivo**: [Por que essa escolha]
+  **Alternativas consideradas**: [Outras opções]
+```
+
+---
+
+### **6️⃣ DOCUMENTAÇÃO** 📚
+
+#### A. Status Update (`docs/features-status.md`)
+
+```markdown
+# Status das Features - BetLink
+
+## ✅ Concluídas
+
+### Feature 1: Setup Inicial
+- **Status**: ✅ Completa
+- **Data**: 01/01/2024
+- **Teste**: "Hello World" com Tailwind funcionando
+- **Aprendizados**: [Link para doc]
+
+### Feature 2: Componentes UI Base
+- **Status**: ✅ Completa
+- **Data**: 02/01/2024
+- **Teste**: Button e Card do shadcn renderizados
+- **Aprendizados**: [Link para doc]
+
+## 🚧 Em Progresso
+
+### Feature 3: Conexão Supabase
+- **Status**: 🚧 80% - Falta tratamento de erros
+- **Início**: 03/01/2024
+- **Bloqueios**: Configuração de RLS
+
+## ⏳ Planejadas
+
+### Feature 4: Sistema de Login
+- **Status**: ⏳ Aguardando Feature 3
+- **Estimativa**: 2 dias
+- **Dependências**: Supabase Auth configurado
+```
+
+#### B. Documento de Aprendizados (`docs/learnings/feature-[nome].md`)
+
+```markdown
+# Aprendizados - Feature: [Nome]
+
+## 📅 Informações
+- **Data**: [Data de implementação]
+- **Duração**: [Tempo real vs estimado]
+- **Desenvolvedor**: [IA + Humano]
+
+## ✅ O que funcionou bem
+1. **Estratégia**: [O que deu certo]
+   - **Por quê**: [Motivo do sucesso]
+   - **Reutilizar em**: [Onde aplicar novamente]
+
+2. **Código reutilizado**: 
+   - Componente X da Feature Y
+   - Hook Z funcionou perfeitamente
+
+## ❌ Problemas encontrados
+
+### Problema 1: [Título]
+- **Descrição**: [Detalhes do problema]
+- **Erro**: `[Mensagem de erro]`
+- **Causa raiz**: [Por que aconteceu]
+- **Solução**: [Como foi resolvido]
+- **Prevenção**: [Como evitar no futuro]
+- **Tempo perdido**: [Quanto tempo levou]
+
+### Problema 2: [Título]
+[...]
+
+## 💡 Decisões técnicas
+
+### Decisão 1: [Usar biblioteca X ao invés de Y]
+- **Contexto**: [Situação que levou à decisão]
+- **Opções consideradas**:
+  - Opção A: [Prós e contras]
+  - Opção B: [Prós e contras]
+- **Escolha final**: [Qual e por quê]
+- **Resultado**: [Foi boa decisão?]
+
+## 📊 Métricas
+- **Linhas de código**: ~XXX
+- **Arquivos criados**: Y
+- **Arquivos modificados**: Z
+- **Cobertura de testes**: XX%
+- **Bugs encontrados**: N
+- **Bugs corrigidos**: N
+
+## 🔮 Recomendações futuras
+1. [Sugestão para próximas features]
+2. [Melhorias no processo]
+3. [Ferramentas que ajudariam]
+```
+
+#### C. Documento de Handover (`docs/handover/to-feature-[próxima].md`)
+
+```markdown
+# Handover para Feature: [Próxima Feature]
+
+## 📦 Estado Atual do Projeto
+
+### Estrutura de Arquivos
+```
+project/
+├── app/
+│   ├── layout.tsx ✅ (não modificar)
+│   ├── page.tsx ✅ (home funcionando)
+│   └── dashboard/
+│       └── page.tsx ✅ (nova página criada)
+├── components/
+│   ├── ui/ ✅ (shadcn configurado)
+│   └── features/
+│       └── auth/ ✅ (componentes de login)
+└── lib/
+    └── supabase/
+        └── client.ts ✅ (configurado e funcionando)
+```
+
+### APIs e Funções Disponíveis
+
+#### 1. Autenticação
+```typescript
+// lib/auth.ts
+export async function signIn(email: string, password: string) { ... }
+export async function signOut() { ... }
+export function useAuth() { ... } // Hook
+```
+
+#### 2. Banco de Dados
+```typescript
+// lib/supabase/queries.ts
+export async function getCanais() { ... }
+export async function getUser(id: string) { ... }
+```
+
+### Componentes Reutilizáveis
+
+#### UI Base (shadcn)
+- `Button` - Todos os estilos configurados
+- `Card` - Com variantes
+- `Input` - Com validação
+- `Dialog` - Para modais
+
+#### Features
+- `LoginForm` - Formulário completo
+- `AuthGuard` - HOC para rotas protegidas
+
+### Variáveis de Ambiente
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=xxx
+# Novas variáveis adicionadas:
+NEXT_PUBLIC_APP_NAME=BetLink
+```
+
+### Estado Global
+- Zustand configurado em `store/`
+- Auth state funcionando
+- Sem outros stores ainda
+
+## ⚠️ Cuidados e Avisos
+
+### Não Modificar
+1. `middleware.ts` - Lógica de auth crítica
+2. `app/layout.tsx` - Layout raiz
+3. Configurações do Supabase
+
+### Testar Sempre
+- [ ] Login/Logout continua funcionando
+- [ ] Navegação não quebrou
+- [ ] Console sem erros
+
+### Possíveis Conflitos
+- Feature de pagamento vai usar `/app/api/`
+- Telegram bot pode precisar de webhook em `/api/webhooks/`
+
+## 🚀 Como Começar
+
+1. **Instalar dependências** (se houver novas)
+```bash
+npm install
+```
+
+2. **Verificar variáveis de ambiente**
+```bash
+cp .env.example .env.local
+# Preencher valores necessários
+```
+
+3. **Rodar projeto**
+```bash
+npm run dev
+```
+
+4. **Testar features anteriores**
+```bash
+npm run test:features
+```
+
+## 📝 Notas Importantes
+
+1. **Padrão de imports** está definido em `.eslintrc`
+2. **Tipos TypeScript** gerados em `types/database.types.ts`
+3. **Logs** devem seguir padrão `[Feature: Nome]`
+4. **Novos componentes** em `/components/features/[sua-feature]/`
+
+## 🎯 Sua Feature
+
+Com base no estado atual, sua feature pode:
+- ✅ Usar autenticação existente
+- ✅ Criar novas páginas em `/app/`
+- ✅ Reutilizar componentes UI
+- ✅ Acessar Supabase configurado
+
+Boa sorte! 🚀
+```
+
+---
+
+## 🛠️ Ferramentas de Suporte
+
+### Script de Setup por Feature
+```bash
+#!/bin/bash
+# scripts/new-feature.sh
+
+FEATURE_NAME=$1
+mkdir -p components/features/$FEATURE_NAME
+mkdir -p tests/features
+mkdir -p docs/learnings
+
+echo "Feature $FEATURE_NAME criada!"
+echo "- Componentes em: components/features/$FEATURE_NAME"
+echo "- Testes em: tests/features/$FEATURE_NAME.spec.ts"
+echo "- Docs em: docs/learnings/feature-$FEATURE_NAME.md"
+```
+
+### Template de Teste Rápido
+```typescript
+// tests/quick-test.ts
+export async function quickTest(featureName: string) {
+  console.log(`🧪 Teste rápido: ${featureName}`);
+  
+  // 1. Build passou?
+  await exec('npm run build');
+  
+  // 2. Lint passou?
+  await exec('npm run lint');
+  
+  // 3. Types OK?
+  await exec('npm run type-check');
+  
+  // 4. Testes passaram?
+  await exec(`npm run test:feature ${featureName}`);
+  
+  console.log('✅ Todos os testes rápidos passaram!');
+}
+```
+
+---
+
+## 📊 Métricas de Sucesso
+
+### Por Feature
+- ✅ Teste humano passa na primeira tentativa: > 80%
+- ⏱️ Tempo de implementação vs estimativa: < 1.5x
+- 🐛 Bugs em produção: 0
+- 🔄 Retrabalho necessário: < 20%
+
+### Geral do Projeto
+- 📈 Features entregues por sprint: 4-6
+- 🎯 Cobertura de testes: > 70%
+- 📚 Documentação completa: 100%
+- 😊 Satisfação do desenvolvedor: Alta
+
+---
+
+## 🚀 Benefícios deste Workflow
+
+1. **Previsibilidade**: Cada feature segue o mesmo processo
+2. **Rastreabilidade**: Logs e documentação em cada etapa
+3. **Qualidade**: Testes em múltiplas camadas
+4. **Conhecimento**: Aprendizados documentados
+5. **Eficiência**: Handover elimina re-explicações
+6. **Escalabilidade**: Processo funciona para 10 ou 100 features

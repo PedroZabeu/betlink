@@ -1,0 +1,401 @@
+**Erros de autorização:**
+- **Acesso negado**: Role insuficiente
+- **Recurso protegido**: Tentativa de acesso não autorizado
+- **Token inválido**: Sessão comprometida
+- **Permissão revogada**: Alteração de role# BetLink - Sistema de Autenticação e Permissões
+
+## 1. Visão Geral do Sistema
+
+### 1.1 Arquitetura de Autenticação
+**Stack Tecnológico:**
+- **Supabase Auth**: Sistema principal de autenticação e gerenciamento de usuários
+- **NextJS Middleware**: Verificação de rotas protegidas no lado do servidor
+- **RLS (Row Level Security)**: Controle de acesso a dados no nível de banco
+- **JWT Tokens**: Sessões seguras e autorização stateless
+
+### 1.2 Níveis de Permissão
+**Hierarquia de usuários:**
+1. **Master**: Controle total da plataforma (dono do sistema)
+2. **Admin**: Gerenciamento de tipsters e clientes
+3. **Tipster**: Gestão de canais próprios e assinantes
+4. **Cliente**: Acesso a assinaturas e dashboard pessoal
+
+### 1.3 Fluxos de Autenticação
+- **Cliente**: Sign-up público + confirmação por email + login
+- **Tipster**: Criado por Admin + email com credenciais + troca obrigatória de senha
+- **Admin**: Criado por Master + credenciais diretas
+- **Master**: Configuração inicial da plataforma (seed data)
+
+---
+
+## 2. Configuração do Supabase
+
+### 2.1 Setup do Projeto
+## 🎯 MVP - MUST HAVE
+
+**Configuração Básica:**
+- **Projeto Supabase**: Configuração de URL e chaves de API
+- **Variáveis de ambiente**: URLs públicas e service role keys
+- **Políticas RLS**: Habilitação de Row Level Security
+- **Configuração de email**: SMTP para envio de confirmações
+
+### 2.2 Schema de Dados
+**Tabela auth.users (Supabase nativo):**
+- **Gerenciamento automático**: Email, senha hash, timestamps
+- **Metadata**: Informações customizadas do usuário
+- **Confirmação**: Sistema de verificação por email
+
+**Tabela public.profiles (Customizada):**
+- **Extensão de usuário**: Dados adicionais de perfil
+- **Role management**: Tipo de usuário (master/admin/tipster/cliente)
+- **Relacionamento**: Foreign key com auth.users
+- **Campos customizados**: 
+  - Nome completo
+  - Avatar
+  - Telefone (obrigatório para clientes e tipsters)
+  - Telegram username (obrigatório para clientes e tipsters)
+  - Configurações específicas por role
+
+### 2.3 Row Level Security (RLS)
+## 🎯 MVP - MUST HAVE
+
+**Políticas de Segurança:**
+- **Usuários**: Podem ver e editar apenas próprio perfil
+- **Admins**: Podem criar e gerenciar perfis de tipsters
+- **Masters**: Acesso total a todos os dados
+- **Isolamento**: Tipsters veem apenas seus canais e clientes
+
+---
+
+## 3. Processo de Autenticação por Tipo de Usuário
+
+### 3.1 Cliente (Sign-up Público)
+## 🎯 MVP - MUST HAVE
+
+#### Página de Cadastro
+**Campos obrigatórios:**
+- **Nome completo**: Validação de mínimo 2 caracteres
+- **Email**: Validação de formato + unicidade
+- **Telefone**: Formato nacional (11) 99999-9999
+- **@ do Telegram**: Username sem @ (ex: joaosilva)
+- **Senha**: Critérios de segurança obrigatórios
+- **Confirmar senha**: Match validation
+- **Termos de uso**: Aceite obrigatório
+
+**Validações específicas:**
+- **Email único**: Verificação no banco de dados
+- **Telefone**: Formato brasileiro + validação de operadora
+- **Telegram**: Username válido + verificação se existe
+- **Senha forte**: Mínimo 8 caracteres + maiúscula + número
+- **Rate limiting**: Proteção contra cadastros em massa
+
+#### Confirmação de Email
+**Fluxo automático:**
+1. **Cadastro** → Email de confirmação enviado
+2. **Cliente** clica no link único
+3. **Conta** é ativada automaticamente
+4. **Perfil** é criado na tabela profiles
+5. **Redirecionamento** para dashboard
+
+### 3.2 Cliente (Login)
+## 🎯 MVP - MUST HAVE
+
+#### Página de Login
+**Funcionalidades:**
+- **Email/senha**: Autenticação padrão
+- **Lembrar-me**: Sessão persistente opcional
+- **Esqueci senha**: Link para recuperação
+- **Redirecionamento inteligente**: Baseado no tipo de usuário
+
+#### Recuperação de Senha
+**Processo seguro:**
+- **Solicitação**: Por email registrado
+- **Email único**: Link com token temporário
+- **Nova senha**: Página segura para redefinição
+- **Confirmação**: Login automático após alteração
+
+### 3.3 Tipster (Criação por Admin)
+## 🎯 MVP - MUST HAVE
+
+#### Processo de Criação
+**Fluxo administrativo:**
+1. **Admin** acessa painel de usuários
+2. **Preenche** dados básicos do tipster:
+   - Nome completo
+   - Email (único)
+   - Telefone (formato brasileiro)
+   - @ do Telegram (username)
+3. **Sistema** gera senha temporária
+4. **Email** automático com credenciais
+5. **Tipster** obrigado a trocar senha no primeiro login
+
+#### Email de Credenciais
+**Conteúdo automático:**
+- **Dados de acesso**: Email e senha temporária
+- **Dados pessoais**: Nome e telefone cadastrados
+- **Telegram**: Username configurado para os canais
+- **Link direto**: Para área de login do tipster
+- **Instruções**: Como fazer primeiro acesso
+- **Aviso**: Necessidade de trocar senha
+
+### 3.4 Tipster (Primeiro Login)
+## 🎯 MVP - MUST HAVE
+
+#### Login Separado
+**Área específica:**
+- **URL dedicada**: /tipster/login (separada da área pública)
+- **Interface diferenciada**: Visual específico para tipsters
+- **Validação**: Apenas usuários com role "tipster"
+
+#### Troca Obrigatória de Senha
+**Processo forçado:**
+1. **Login** com credenciais recebidas
+2. **Detecção** de primeira entrada
+3. **Redirecionamento** obrigatório para troca de senha
+4. **Validação**: Nova senha deve atender critérios
+5. **Conclusão**: Acesso liberado para área do tipster
+
+---
+
+## 4. Proteção de Rotas e Middleware
+
+### 4.1 NextJS Middleware
+## 🎯 MVP - MUST HAVE
+
+**Verificação automática:**
+- **Interceptação**: Todas as rotas protegidas
+- **Validação**: Sessão ativa e role adequado
+- **Redirecionamento**: Baseado no status de autenticação
+- **Performance**: Verificação no edge antes do rendering
+
+**Rotas protegidas:**
+- **/dashboard/***: Apenas clientes autenticados
+- **/meus-canais/***: Apenas tipsters autenticados
+- **/admin/***: Apenas admin/master
+- **Área pública**: Sem restrições
+
+### 4.2 Controle de Permissões
+**Validação por role:**
+- **Cliente**: Acesso apenas ao próprio dashboard
+- **Tipster**: Acesso apenas aos próprios canais
+- **Admin**: Gerenciamento de tipsters e configurações
+- **Master**: Acesso completo ao sistema
+
+### 4.3 Redirecionamento Inteligente
+**Baseado no tipo de usuário:**
+- **Login cliente** → /dashboard
+- **Login tipster** → /meus-canais
+- **Login admin** → /admin
+- **Usuário não autorizado** → Página de erro
+
+---
+
+## 5. Gestão de Sessões e Segurança
+
+### 5.1 Configuração de Sessão
+## 🎯 MVP - MUST HAVE
+
+**Parâmetros de segurança:**
+- **Duração**: 24 horas para sessão ativa
+- **Refresh token**: 30 dias para renovação automática
+- **Sessões concorrentes**: Máximo 3 por usuário
+- **Timeout**: Logout automático por inatividade
+
+### 5.2 Renovação Automática
+**Processo transparente:**
+- **Token refresh**: Automático antes da expiração
+- **Sessão contínua**: Sem interrupção para o usuário
+- **Fallback**: Logout seguro se renovação falhar
+- **Logging**: Registro de todas as renovações
+
+### 5.3 Logout Seguro
+**Limpeza completa:**
+- **Invalidação**: Token no servidor
+- **Limpeza local**: Storage e cache do browser
+- **Redirecionamento**: Para página inicial
+- **Auditoria**: Log do evento de logout
+
+---
+
+## 6. Validações e Regras de Negócio
+
+### 6.1 Validação de Dados
+## 🎯 MVP - MUST HAVE
+
+**Critérios de senha:**
+- **Comprimento**: Mínimo 8 caracteres
+- **Complexidade**: Maiúscula + minúscula + número + especial
+- **Histórico**: Não pode ser igual às últimas 3 senhas
+- **Dicionário**: Proteção contra senhas comuns
+
+**Validação de dados obrigatórios:**
+- **Email único**: Verificação no banco de dados
+- **Telefone**: Formato brasileiro (11) 99999-9999
+- **Telegram**: Username válido (sem @, 5-32 caracteres)
+- **Senha forte**: Mínimo 8 caracteres + maiúscula + número
+- **Rate limiting**: Proteção contra cadastros em massa
+
+**Validação específica do Telegram:**
+- **Username**: Apenas letras, números e underscore
+- **Comprimento**: Entre 5 e 32 caracteres
+- **Unicidade**: Verificação se já está em uso no sistema
+- **Existência**: Validação opcional se username existe no Telegram
+
+### 6.2 Rate Limiting
+**Proteção contra ataques:**
+- **Login**: Máximo 5 tentativas por 15 minutos
+- **Cadastro**: Máximo 3 por IP por hora
+- **Reset senha**: Máximo 3 tentativas por hora
+- **Bloqueio progressivo**: Aumento do tempo de bloqueio
+
+### 6.3 Auditoria e Logs
+**Monitoramento de segurança:**
+- **Eventos**: Login, logout, alterações de senha
+- **Metadados**: IP, user-agent, timestamp
+- **Tentativas**: Logs de falhas e sucessos
+- **Retenção**: Dados por 90 dias
+
+---
+
+## 7. Integração com Sistema
+
+### 7.1 Integração com Telegram
+**Dados necessários para funcionamento:**
+- **Username**: @ do Telegram para adicionar aos canais
+- **Verificação**: Validação se username existe
+- **Unicidade**: Não permitir usernames duplicados
+- **Formato**: Sem @ inicial, apenas alphanumerico e underscore
+
+**Processo de validação:**
+- **Cliente/Tipster**: Informa username no cadastro
+- **Sistema**: Valida formato e unicidade
+- **Bot**: Usa username para gerenciar canais
+- **Atualização**: Permite alteração posterior nas configurações
+
+### 7.2 Context Provider
+**Estado global de autenticação:**
+- **User state**: Informações do usuário logado
+- **Loading states**: Status de carregamento
+- **Error handling**: Tratamento de erros de auth
+- **Session management**: Controle de sessão ativa
+
+### 7.3 Hooks Customizados
+**Facilitadores de desenvolvimento:**
+- **useAuth**: Hook principal de autenticação
+- **useRequireAuth**: Hook para páginas protegidas
+- **useRole**: Hook para verificação de permissões
+- **useProfile**: Hook para dados do perfil
+
+### 7.4 Componentes Reutilizáveis
+**Building blocks:**
+- **ProtectedRoute**: Wrapper para rotas protegidas
+- **AuthGuard**: Verificação de permissões
+- **LoginForm**: Formulário padronizado
+- **AuthLoading**: Estado de carregamento
+
+## 8. Tratamento de Erros
+
+### 8.1 Categorias de Erro
+## 🎯 MVP - MUST HAVE
+
+**Erros de autenticação:**
+- **Credenciais inválidas**: Email/senha incorretos
+- **Email não confirmado**: Conta não verificada
+- **Conta bloqueada**: Muitas tentativas de login
+- **Sessão expirada**: Token inválido ou expirado
+
+**Erros de validação específicos:**
+- **Telefone inválido**: Formato não aceito
+- **Telegram inválido**: Username não conforme
+- **Telegram duplicado**: Username já cadastrado
+- **Telegram inexistente**: Username não existe no Telegram
+
+### 8.2 Mensagens de Erro
+**Comunicação clara:**
+- **Tradução**: Mensagens em português
+- **Contexto**: Explicação do problema
+- **Ação**: Próximos passos para o usuário
+- **Suporte**: Como obter ajuda se necessário
+
+### 8.3 Estados de Loading
+**Feedback visual:**
+- **Skeleton screens**: Para carregamento de dados
+- **Spinners**: Para operações rápidas
+- **Progress bars**: Para processos longos
+- **Disabled states**: Para prevenção de double-click
+
+---
+
+## 9. Configurações de Produção
+
+### 9.1 Segurança em Produção
+**Hardening de segurança:**
+- **HTTPS obrigatório**: SSL/TLS em todas as conexões
+- **Cookies seguros**: Flags httpOnly e secure
+- **Headers de segurança**: CSP, HSTS, X-Frame-Options
+- **Rate limiting ativo**: Proteção DDoS básica
+
+### 9.2 Monitoramento
+**Observabilidade:**
+- **Métricas de auth**: Taxa de sucesso, falhas, tempo resposta
+- **Alertas**: Tentativas de acesso suspeitas
+- **Dashboard**: Visão geral da saúde do sistema
+- **Logs estruturados**: Para análise e debugging
+
+### 9.3 Backup e Recuperação
+**Continuidade do negócio:**
+- **Backup de usuários**: Dados críticos preservados
+- **Procedimentos**: Recuperação de contas perdidas
+- **Rollback**: Capacidade de reverter alterações
+- **Disaster recovery**: Plano para falhas críticas
+
+---
+
+## 10. Roadmap de Funcionalidades
+
+### 10.1 MVP (Must Have)
+- ✅ Cadastro e login de clientes
+- ✅ Criação de tipsters por admin
+- ✅ Proteção de rotas por role
+- ✅ Recuperação de senha
+- ✅ Confirmação de email
+- ✅ Sessões seguras
+
+### 10.2 v1.1 (Nice to Have)
+- 🔐 Autenticação em dois fatores (2FA)
+- 👥 Login social (Google, Facebook)
+- 📱 Notificações push para login
+- 🔒 Bloqueio automático de contas suspeitas
+- 📊 Dashboard de analytics de auth
+
+### 10.3 v2.0 (Future)
+- 🌍 Single Sign-On (SSO)
+- 🎯 Autenticação biométrica
+- 🔗 Integração com sistemas externos
+- 🤖 ML para detecção de fraudes
+- 📋 Compliance LGPD/GDPR completo
+
+---
+
+## 11. Considerações de UX
+
+### 11.1 Experiência do Usuário
+**Fluidez na autenticação:**
+- **Onboarding suave**: Cadastro em etapas simples
+- **Feedback imediato**: Validação em tempo real
+- **Recovery fácil**: Processo intuitivo de recuperação
+- **Lembrança inteligente**: Auto-complete e sugestões
+
+### 11.2 Acessibilidade
+**Inclusão digital:**
+- **Compatibilidade**: Screen readers e teclado
+- **Contraste**: Conformidade WCAG 2.1 AA
+- **Tamanhos**: Botões e campos adequados
+- **Linguagem**: Clara e objetiva
+
+### 11.3 Performance
+**Velocidade e responsividade:**
+- **Load time**: Páginas de auth em < 2s
+- **Feedback**: Estados de loading claros
+- **Offline**: Degradação graciosa sem conexão
+- **Cache**: Otimização de recursos estáticos

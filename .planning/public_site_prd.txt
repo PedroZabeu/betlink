@@ -1,0 +1,240 @@
+# BetLink - Especificação Detalhada da Área Pública (ATUALIZADA)
+
+## 1. Estrutura de Navegação Global
+
+### 1.1 Header (Fixo em todas as páginas)
+**Componentes:**
+- **Logo BetLink** (esquerda) → Link para Home
+- **Menu Principal** (centro):
+  - Home
+  - **Canais** (foco no produto final)
+  - Blog
+  - Sobre
+- **Área do Usuário** (direita):
+  - **Usuário não logado**: Botões "Entrar" e "Cadastrar"
+  - **Usuário logado**: Avatar + dropdown (Dashboard, Configurações, Sair)
+
+### 1.2 Footer (Fixo em todas as páginas)
+**Seções:**
+- **Links Principais**: **Canais**, Blog, Sobre, Termos, Privacidade
+- **Redes Sociais**: Instagram, Twitter, Telegram
+- **Contato**: Email, Telegram de suporte
+- **Propaganda**: Banner rotativo para casas de apostas
+
+### 1.3 Cookie Banner (Overlay Global)
+## 🎯 MVP - MUST HAVE
+**Componentes:**
+- **Banner fixo** (bottom da tela)
+- **Texto**: "Usamos cookies para melhorar sua experiência. Ao continuar navegando, você aceita nossa política de cookies."
+- **Botões**: "Aceitar" e "Política de Cookies"
+- **Comportamento**: 
+  - Aparece na primeira visita
+  - Desaparece após aceitar
+  - Não reaparece (localStorage)
+  - Link para página de política detalhada
+
+---
+
+## 2. Landing Page (/)
+
+### 2.1 Estrutura da Página
+
+#### Hero Section
+**Elementos:**
+- **Headline Principal**: "Conecte-se aos Melhores **Canais** de Tips do Brasil"
+- **Subheadline**: "Acesse dicas profissionais, acompanhe resultados e maximize seus lucros"
+- **CTA Principal**: "Explorar **Canais**" → Redireciona para /canais
+- **CTA Secundário**: "Cadastre-se Grátis" → Abre modal de cadastro
+- **Background**: Imagem/vídeo de apostas esportivas
+
+#### Section: Como Funciona (3 cards)
+1. **Descubra**: "Explore **canais** verificados com histórico comprovado"
+2. **Assine**: "Escolha o **canal** que se adequa ao seu perfil"
+3. **Lucre**: "Receba dicas em tempo real e acompanhe resultados"
+
+#### Section: Canais em Destaque
+
+## 🎯 MVP - MUST HAVE
+**Componentes básicos:**
+- **Título**: "Nossos Melhores **Canais**"
+- **Grid simples**: 6 cards de canais (2x3)
+- **CTA**: "Ver Todos os **Canais**" → /canais
+
+#### Section: Estatísticas da Plataforma
+**Métricas em destaque:**
+- Número de **canais** ativos
+- Total de clientes ativos
+- ROI médio da plataforma
+- Total de dicas enviadas
+
+#### Section: Propaganda Casas de Apostas
+**Formato:**
+- Banner horizontal com logos de parceiros
+- Texto: "Aposte nas melhores casas do mercado"
+- Links com tracking de afiliados
+
+### 2.2 Ações Disponíveis
+- **Explorar Canais** → Navegação para /canais
+- **Cadastre-se Grátis** → Modal de registro
+- **Entrar** → Modal de login
+- **Ver Canais** (cards) → Modal do canal específico
+- **Links Casa de Apostas** → Redirecionamento com tracking
+
+---
+
+## 3. Página de Canais (/canais)
+
+### 3.1 Estrutura da Página
+
+#### Header da Página
+**Elementos:**
+- **Título**: "Nossos **Canais** de Tips"
+- **Descrição**: "Encontre o **canal** ideal para sua estratégia"
+- **Contador**: "X **canais** ativos"
+
+#### Barra de Filtros (Sidebar esquerda)
+
+## 🎯 MVP - MUST HAVE
+**Filtros Essenciais:**
+- **Por Status**: Grátis, Pago, Com Vagas, Lista de Espera
+- **Por Preço**: Slider simples (R$ 0 a R$ 500)
+- **Ordenação básica**: ROI, Preço, Mais Recente
+
+## 🚀 NICE TO HAVE - Versões Futuras
+
+**v1.1 - Filtros Intermediários:**
+- **Por ROI**: Slider de % (ex: 5% a 50%)
+- **Por Mercados**: Checkboxes (Futebol, Basquete, Tênis)
+
+**v2.0 - Filtros Avançados:**
+- **Por Casas**: Checkboxes (Bet365, Sportingbet, etc.)
+- **Ordenação avançada**: Popularidade, Rating, Taxa de acerto
+- **Filtros salvos**: Permitir salvar combinações de filtros
+
+#### Grid de Canais (Área principal)
+**Layout**: Grid responsivo (3 colunas desktop, 2 tablet, 1 mobile)
+
+**Card do Canal:**
+- **Avatar + Nome** do canal
+- **Nome do Tipster** (secundário, menor)
+- **Badge de Status**: "Grátis", "Pago", "Lotado", "Lista de Espera"
+- **Métricas Principais**:
+  - ROI dos últimos 30 dias
+  - Total de apostas
+  - Mercados principais
+  - Preço da assinatura
+- **Botões de Ação** (sempre 2 botões):
+  - **Botão "Detalhes"** → Abre página do canal
+  - **Botão "Assinar"** → Processo de assinatura
+    - Se status "Lotado": Botão vira "Lista de Espera"
+    - Se não logado: Redireciona para login
+
+### 3.2 Página do Canal (/canal/[id])
+
+## 🎯 MVP - MUST HAVE
+
+#### Header da Página
+- **Hero Section**:
+  - **Avatar grande** + Nome do canal
+  - **Nome do tipster** (secundário)
+  - **Badge de Status** 
+  - **Métricas Hero**: ROI 30d, Total apostas, Preço
+  - **CTA Principal**: Botão "Assinar Canal" (ou "Lista de Espera")
+
+#### Conteúdo Principal (Single Page - sem abas)
+- **Seção Bio**: 
+  - Descrição da estratégia do canal
+  - Mercados principais
+  - Preço da assinatura
+- **Métricas Básicas**:
+  - ROI dos últimos 30 dias
+  - Total de apostas realizadas
+  - Taxa de acerto geral
+- **Info de Contato**:
+  - Link do Telegram (se assinante)
+  - Horários de atividade
+
+### 3.3 Ações Disponíveis
+
+## 🎯 MVP - MUST HAVE
+- **Aplicar Filtros** → Atualiza grid em tempo real
+- **Ver Detalhes** → Navega para página /canal/[id]
+- **Assinar Canal** → Processo de assinatura (se logado) ou login
+- **Lista de Espera** → Adiciona à waitlist (se lotado)
+
+---
+
+## 4. Integração Telegram Atualizada
+
+### 4.1 Dados de Cadastro
+**Cliente precisa fornecer**:
+- **Nome completo**
+- **Email único**
+- **Telefone** (formato brasileiro)
+- **@ do Telegram** (username sem @, obrigatório)
+- **Senha**
+
+### 4.2 Validação do Telegram
+**No cadastro do cliente**:
+- **Username**: Formato correto (5-32 caracteres, apenas letras/números/underscore)
+- **Unicidade**: Não pode repetir no sistema
+- **Existência**: Validação opcional se username existe no Telegram
+
+### 4.3 Processo de Assinatura
+**Fluxo automatizado**:
+1. **Cliente** assina canal na plataforma
+2. **Sistema** processa pagamento
+3. **Bot** adiciona cliente ao canal Telegram automaticamente
+4. **Cliente** recebe acesso instantâneo
+
+**Cancelamento automatizado**:
+1. **Cliente** cancela assinatura
+2. **Sistema** processa cancelamento
+3. **Bot** remove cliente do canal automaticamente
+4. **Acesso** é revogado imediatamente
+
+### 4.4 Gerenciamento de Canais
+**Criação automática pelo bot**:
+- **Admin** cria canal no sistema
+- **Bot** cria canal no Telegram automaticamente
+- **ID do canal** é obtido e armazenado
+- **Link** é gerado (t.me/nomecanal)
+
+---
+
+## 5. Estados e Comportamentos Especiais
+
+### 5.1 Usuário Não Logado
+- **Limitações**: Não pode assinar canais, apenas visualizar
+- **CTAs**: Todos redirecionam para login/cadastro
+- **Acesso**: Apenas área pública
+
+### 5.2 Usuário Logado
+- **Privilégios**: Pode assinar canais, favoritar, entrar em listas
+- **Navegação adicional**: Acesso ao dashboard via header
+- **Personalização**: Recomendações baseadas em preferências
+
+### 5.3 Estados de Loading
+- **Skeleton screens** para grids de canais
+- **Spinners** para modais e filtros
+- **Lazy loading** para imagens
+
+### 5.4 Estados de Erro
+- **404**: Página não encontrada com navegação alternativa
+- **500**: Erro do servidor com opção de recarregar
+- **Conectividade**: Banner de offline com retry
+
+---
+
+## 6. Responsividade
+
+### 6.1 Breakpoints
+- **Mobile**: < 768px
+- **Tablet**: 768px - 1023px  
+- **Desktop**: > 1024px
+
+### 6.2 Adaptações Mobile
+- **Header**: Menu hamburger
+- **Filtros**: Drawer/modal em vez de sidebar
+- **Grid**: 1 coluna para cards
+- **Modal**: Fullscreen em mobile

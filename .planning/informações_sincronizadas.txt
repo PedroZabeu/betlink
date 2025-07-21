@@ -1,0 +1,319 @@
+# BetLink - Dados Críticos de Sincronização
+
+## 🔄 Informações que Aparecem em Múltiplas Páginas
+
+### 1. 📊 **ROI e Métricas de Performance**
+
+#### **DADOS SINCRONIZADOS:**
+- ROI 30 dias (%)
+- Total de apostas
+- Unidades lucradas
+- Taxa de acerto
+
+#### **ONDE APARECEM:**
+```mermaid
+graph TD
+    A[ROI Canal X] --> B[Área Pública - /canais]
+    A --> C[Área Pública - /canal/id]
+    A --> D[Tipster - /meus-canais]
+    A --> E[Tipster - /canal/apostas]
+    A --> F[Admin - /admin/canais]
+    A --> G[Admin - /admin/dashboard]
+```
+
+**Páginas Afetadas:**
+- **Pública**: `/canais` (cards dos canais)
+- **Pública**: `/canal/[id]` (métricas do canal)
+- **Tipster**: `/meus-canais` (cards dos canais)
+- **Tipster**: `/[canal]/apostas` (cards resumo)
+- **Admin**: `/admin/canais` (tabela global)
+- **Admin**: `/admin/dashboard` (estatísticas)
+- **Admin**: `/admin/relatorios` (gráficos)
+
+**PONTO CRÍTICO:**
+```tsx
+// PROBLEMA: ROI pode estar diferente em cada tela
+// Tipster muda status de aposta → ROI recalcula
+// Mas pode não atualizar em todas as telas ao mesmo tempo
+
+// SOLUÇÃO: View centralizada canal_stats
+SELECT roi_percentage FROM canal_stats WHERE id = canal_id;
+```
+
+---
+
+### 2. 👥 **Status e Quantidade de Assinantes**
+
+#### **DADOS SINCRONIZADOS:**
+- Número de assinantes ativos
+- Vagas disponíveis (max - ativos)
+- Lista de espera
+- Status individual das assinaturas
+
+#### **ONDE APARECEM:**
+```mermaid
+graph TD
+    A[Assinantes Canal X] --> B[Pública - /canais]
+    A --> C[Pública - /canal/id]
+    A --> D[Cliente - /dashboard]
+    A --> E[Tipster - /canal/clientes]
+    A --> F[Admin - /admin/canais]
+    A --> G[Admin - /admin/clientes]
+```
+
+**Páginas Afetadas:**
+- **Pública**: `/canais` (badge "X vagas restantes")
+- **Pública**: `/canal/[id]` ("15/20 assinantes")
+- **Cliente**: `/dashboard` (status da própria assinatura)
+- **Tipster**: `/[canal]/clientes` (lista completa + cards resumo)
+- **Admin**: `/admin/canais` (total assinantes por canal)
+- **Admin**: `/admin/clientes` (status global)
+
+**CENÁRIO CRÍTICO:**
+```tsx
+// Cliente cancela assinatura
+// ❌ FALHA: Área pública ainda mostra "Canal Lotado"
+// ❌ FALHA: Tipster não vê que cliente saiu
+// ❌ FALHA: Lista de espera não é processada
+
+// ✅ SOLUÇÃO: Trigger automático
+UPDATE canal_stats SET assinantes_ativos = COUNT(*)
+FROM assinaturas WHERE status = 'ativa' AND canal_id = X;
+```
+
+---
+
+### 3. 💰 **Preços e Receita**
+
+#### **DADOS SINCRONIZADOS:**
+- Preço mensal do canal
+- Receita total (MRR)
+- Comissão da plataforma
+- Valor pago por cliente
+
+#### **ONDE APARECEM:**
+```mermaid
+graph TD
+    A[Preço Canal X] --> B[Pública - /canais]
+    A --> C[Pública - /canal/id]
+    A --> D[Cliente - /dashboard]
+    A --> E[Tipster - /canal/clientes]
+    A --> F[Admin - financeiro]
+```
+
+**CENÁRIO CRÍTICO:**
+```tsx
+// Admin muda preço de R$ 50 → R$ 60
+// ❌ Área pública ainda mostra R$ 50
+// ❌ Assinaturas ativas continuam pagando R$ 50
+// ❌ Novos clientes veem preços diferentes
+
+// ✅ SOLUÇÃO: Separar preço atual vs preço pago
+canais.preco_mensal (novo valor)
+assinaturas.preco_pago (valor que cliente paga)
+```
+
+---
+
+### 4. 📅 **Datas de Vencimento e Status**
+
+#### **DADOS SINCRONIZADOS:**
+- Data de vencimento da assinatura
+- Status (Ativo/Vencendo/Vencido/Período Graça)
+- Próxima cobrança
+
+#### **ONDE APARECEM:**
+- **Cliente**: `/dashboard` (tabela de canais)
+- **Tipster**: `/[canal]/clientes` (status de cada cliente)
+- **Admin**: `/admin/clientes` (visão global)
+- **Telegram**: Acesso ao canal (automático)
+
+**CENÁRIO CRÍTICO:**
+```tsx
+// Data de vencimento passa
+// ❌ Cliente ainda tem acesso no Telegram
+// ❌ Dashboard mostra "Ativo" mas está vencido
+// ❌ Tipster não sabe que cliente está inadimplente
+
+// ✅ SOLUÇÃO: Job diário + cálculo automático
+// Trigger atualiza status baseado em data_vencimento
+// Webhook remove do Telegram automaticamente
+```
+
+---
+
+### 5. 🎯 **Dados das Apostas**
+
+#### **DADOS SINCRONIZADOS:**
+- Status das apostas (Open/Green/Red)
+- Lucro calculado
+- Stake total
+- Histórico completo
+
+#### **ONDE APARECEM:**
+- **Tipster**: `/[canal]/apostas` (tabela + gráficos)
+- **Cliente**: Acesso via Telegram (se assinante)
+- **Admin**: `/admin/relatorios` (performance global)
+
+**CENÁRIO CRÍTICO:**
+```tsx
+// Tipster muda aposta de Open → Green
+// ❌ ROI não recalcula automaticamente
+// ❌ Gráfico acumulado não atualiza
+// ❌ Métricas do canal ficam desatualizadas
+
+// ✅ SOLUÇÃO: Trigger automático
+UPDATE canal_stats SET roi_percentage = novo_calculo
+WHERE canal_id = X;
+```
+
+---
+
+### 6. ⚙️ **Status de Integração Telegram**
+
+#### **DADOS SINCRONIZADOS:**
+- Status do canal Telegram
+- ID do canal
+- Link de acesso
+- Sincronização de membros
+
+#### **ONDE APARECEM:**
+- **Tipster**: `/meus-canais` (status dos canais)
+- **Admin**: `/admin/canais` (saúde da integração)
+- **Cliente**: `/dashboard` (link de acesso)
+
+**CENÁRIO CRÍTICO:**
+```tsx
+// Canal Telegram é deletado manualmente
+// ❌ Sistema ainda mostra como "Sincronizado"
+// ❌ Novos assinantes não conseguem acessar
+// ❌ Links ficam quebrados
+
+// ✅ SOLUÇÃO: Health check periódico
+// Job verifica se canal existe no Telegram
+// Atualiza telegram_sync_status automaticamente
+```
+
+---
+
+## 🚨 **MATRIZ DE SINCRONIZAÇÃO CRÍTICA**
+
+### **NÍVEL 1 - CRÍTICO (Quebra funcionalidade)**
+
+| Dado | Fonte da Verdade | Páginas Afetadas | Frequência |
+|------|------------------|------------------|------------|
+| **Status Assinatura** | `assinaturas.status` | 5 páginas | Tempo Real |
+| **ROI Canal** | `canal_stats.roi_percentage` | 7 páginas | Por mudança |
+| **Assinantes Ativos** | `COUNT(assinaturas)` | 6 páginas | Tempo Real |
+| **Telegram Sync** | `canais.telegram_sync_status` | 4 páginas | 5 min |
+
+### **NÍVEL 2 - IMPORTANTE (Inconsistência)**
+
+| Dado | Fonte da Verdade | Páginas Afetadas | Frequência |
+|------|------------------|------------------|------------|
+| **Preço Canal** | `canais.preco_mensal` | 4 páginas | Manual |
+| **Lucro Apostas** | `apostas.lucro_calculado` | 3 páginas | Por status |
+| **Data Vencimento** | `assinaturas.data_vencimento` | 3 páginas | Diário |
+
+---
+
+## 🔧 **SOLUÇÕES TÉCNICAS OBRIGATÓRIAS**
+
+### **1. Views Centralizadas**
+```sql
+-- Fonte única da verdade para métricas
+CREATE VIEW canal_stats AS
+SELECT 
+    canal_id,
+    COUNT(*) FILTER (WHERE status = 'ativa') as assinantes_ativos,
+    SUM(lucro_calculado) / SUM(stake) * 100 as roi_percentage,
+    -- etc
+FROM assinaturas a
+JOIN apostas ap ON a.canal_id = ap.canal_id
+GROUP BY canal_id;
+```
+
+### **2. Triggers Automáticos**
+```sql
+-- Recalcula métricas quando apostas mudam
+CREATE TRIGGER update_canal_stats 
+AFTER UPDATE ON apostas
+FOR EACH ROW EXECUTE FUNCTION recalculate_canal_metrics();
+```
+
+### **3. Cache Inteligente**
+```tsx
+// Cache com invalidação automática
+const useCanalStats = (canalId) => {
+  return useSWR(`/api/canal-stats/${canalId}`, {
+    refreshInterval: 300000, // 5 min
+    revalidateOnFocus: true
+  });
+};
+```
+
+### **4. Estado Global (React)**
+```tsx
+// Estado global para dados sincronizados
+const useSyncedData = () => {
+  const [canalStats, setCanalStats] = useGlobalState('canal-stats');
+  
+  const updateCanalStat = (canalId, newStats) => {
+    // Atualiza em todas as páginas simultaneamente
+    setCanalStats(prev => ({
+      ...prev,
+      [canalId]: newStats
+    }));
+  };
+};
+```
+
+### **5. WebSockets para Tempo Real**
+```tsx
+// Atualizações em tempo real para dados críticos
+useEffect(() => {
+  const subscription = supabase
+    .channel('canal-updates')
+    .on('postgres_changes', {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'assinaturas'
+    }, (payload) => {
+      // Atualiza todas as páginas abertas
+      updateCanalStats(payload.new.canal_id);
+    })
+    .subscribe();
+}, []);
+```
+
+---
+
+## 📋 **CHECKLIST DE VALIDAÇÃO**
+
+### **Para Cada Dado Sincronizado:**
+
+- [ ] **Fonte única** da verdade definida
+- [ ] **Trigger automático** para recálculo
+- [ ] **Cache** com invalidação inteligente
+- [ ] **Teste** de consistência entre páginas
+- [ ] **Fallback** para quando dados estão dessincronizados
+- [ ] **Monitoramento** de inconsistências
+
+### **Testes Obrigatórios:**
+
+- [ ] Mudar status de aposta → Verificar ROI em todas as telas
+- [ ] Cancelar assinatura → Verificar contadores em todas as telas  
+- [ ] Novo cliente → Verificar vagas disponíveis em tempo real
+- [ ] Canal Telegram off → Verificar status em admin e tipster
+
+---
+
+## 🎯 **PRIORIDADE DE IMPLEMENTAÇÃO**
+
+1. **Views `canal_stats`** (fonte única de métricas)
+2. **Triggers automáticos** (recálculo em tempo real)
+3. **Cache inteligente** (performance + consistência)
+4. **Testes de sincronização** (validação contínua)
+5. **Monitoramento** (alertas para inconsistências)
+
+**Qual aspecto da sincronização você quer detalhar primeiro?**

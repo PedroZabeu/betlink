@@ -1,0 +1,555 @@
+# BetLink - Especificação Detalhada da Área Master/Admin (ATUALIZADA)
+
+## 1. Visão Geral do Sistema Administrativo
+
+### 1.1 Hierarquia de Permissões
+**Master (Dono da Plataforma):**
+- **Controle total**: Acesso a todas as funcionalidades
+- **Gestão de admins**: Criar, editar e remover admins
+- **Configurações globais**: Parâmetros da plataforma
+- **Financeiro**: Visão completa de receitas e comissões
+- **Analytics**: Métricas consolidadas de toda a plataforma
+
+**Admin (Gerente da Plataforma):**
+- **Gestão de tipsters**: Criar, editar e gerenciar tipsters
+- **Gestão de canais**: Criar, editar e gerenciar canais (foco no produto)
+- **Gestão de clientes**: Visualizar e gerenciar clientes
+- **Moderação**: Aprovar/reprovar conteúdo e usuários
+- **Suporte**: Resolver problemas e tickets
+- **Relatórios**: Acesso a dados operacionais
+
+### 1.2 Acesso à Área Administrativa
+**URL de acesso:** /admin
+**Redirecionamento pós-login:**
+- **Master** → /admin/dashboard
+- **Admin** → /admin/dashboard
+- **Outros usuários** → Acesso negado
+
+### 1.3 Diferenças entre Master e Admin
+**Funcionalidades exclusivas do Master:**
+- Criar/editar/remover outros admins
+- Configurações globais da plataforma
+- Relatórios financeiros completos
+- Configuração de comissões e taxas
+- Backup e configurações críticas
+
+**Funcionalidades do Admin:**
+- Gestão completa de tipsters
+- **Criação e gestão de canais** (responsabilidade principal)
+- Gestão de clientes (visualização e suporte)
+- Moderação de conteúdo
+- Relatórios operacionais
+- Tickets de suporte
+
+---
+
+## 2. Layout Global da Área Administrativa
+
+### 2.1 Estrutura Principal
+## 🎯 MVP - MUST HAVE
+
+#### Header (Área Administrativa)
+**Elementos fixos:**
+- **Logo BetLink Admin** (esquerda)
+- **Navegação principal** (centro):
+  - Dashboard
+  - Tipsters
+  - **Canais** (nova seção principal)
+  - Clientes
+  - Relatórios
+  - Configurações (apenas Master)
+- **Área do usuário** (direita):
+  - **Avatar + Nome + Role** (Master/Admin)
+  - **Dropdown**: Configurações pessoais, Ver site público, Sair
+
+#### Sidebar (Desktop)
+**Menu de navegação:**
+- **📊 Dashboard** → /admin/dashboard
+- **👨‍💼 Tipsters** → /admin/tipsters
+- **📺 Canais** → /admin/canais (nova seção)
+- **👥 Clientes** → /admin/clientes
+- **📈 Relatórios** → /admin/relatorios
+- **⚙️ Configurações** → /admin/configuracoes (apenas Master)
+- **🎫 Suporte** → /admin/suporte
+
+---
+
+## 3. Dashboard Administrativo (/admin/dashboard)
+
+### 3.1 Estrutura da Página
+## 🎯 MVP - MUST HAVE
+
+#### Header da Página
+**Elementos:**
+- **Título**: "Dashboard Administrativo"
+- **Saudação**: "Olá, [Nome]! ([Role])"
+- **Filtro de período**: 7d, 30d, 90d, 1a
+- **Última atualização**: Timestamp dos dados
+
+#### Seção: Métricas Principais (Topo)
+**Layout**: Grid 4 colunas (desktop) / 2x2 (tablet) / 1 coluna (mobile)
+
+**Card 1: Total de Tipsters**
+- **Valor**: X tipsters cadastrados
+- **Cor**: Azul
+- **Ícone**: Users
+- **Detalhe**: "X ativos • Y pausados"
+- **Variação**: vs período anterior
+
+**Card 2: Total de Canais**
+- **Valor**: X canais ativos
+- **Cor**: Verde
+- **Ícone**: Hash
+- **Detalhe**: "X abertos • Y fechados"
+- **Variação**: vs período anterior
+
+**Card 3: Total de Clientes**
+- **Valor**: X clientes cadastrados
+- **Cor**: Roxo
+- **Ícone**: UserPlus
+- **Detalhe**: "X ativos • Y inativos"
+- **Variação**: vs período anterior
+
+**Card 4: Receita da Plataforma (Master)**
+- **Valor**: R$ XXX,XX em comissões
+- **Cor**: Laranja
+- **Ícone**: DollarSign
+- **Detalhe**: "MRR: R$ YY,XX"
+- **Variação**: vs período anterior
+
+#### Seção: Gráficos de Visão Geral
+**Layout**: 2 colunas (desktop) / 1 coluna (mobile)
+
+**Gráfico 1: Crescimento de Canais e Tipsters**
+- **Tipo**: Line chart com 2 linhas
+- **Dados**: Tipsters e Canais por mês
+- **Período**: Últimos 12 meses
+- **Interativo**: Hover com detalhes
+
+**Gráfico 2: Receita de Comissões (Master)**
+- **Tipo**: Bar chart mensal
+- **Dados**: Comissões recebidas por mês
+- **Período**: Últimos 12 meses
+- **Breakdown**: Por tipster ou canal
+
+#### Seção: Atividades Recentes
+**Componentes:**
+- **Título**: "Atividades Recentes"
+- **Lista de eventos** (últimos 20):
+  - "Novo tipster cadastrado: [Nome]"
+  - "Novo canal criado: [Canal] para [Tipster]"
+  - "Cliente [Nome] cancelou assinatura do canal [Canal]"
+  - "Tipster [Nome] solicitou novo canal: [Nome]"
+  - "Pagamento processado: R$ [valor] para [Tipster]"
+- **Timestamp**: Data e hora relativa
+- **Filtros**: Por tipo de evento
+- **CTA**: "Ver Histórico Completo" → /admin/logs
+
+#### Seção: Alertas e Notificações
+**Tipos de alerta:**
+- **🔴 Crítico**: Falhas de pagamento, problemas técnicos, integração Telegram
+- **🟠 Atenção**: Tipsters inativos, churn alto, solicitações de canais pendentes
+- **🟡 Informativo**: Metas atingidas, marcos importantes
+- **Ações**: Marcar como lido, ir para detalhes
+
+---
+
+## 4. Gestão de Tipsters (/admin/tipsters)
+
+### 4.1 Estrutura da Página
+## 🎯 MVP - MUST HAVE
+
+#### Header da Página
+**Elementos:**
+- **Título**: "Gestão de Tipsters"
+- **Contador**: "X tipsters cadastrados"
+- **CTA**: "Adicionar Tipster" → Modal de criação
+- **Filtros**: Status, data de cadastro, performance
+
+#### Filtros e Busca
+**Barra de filtros:**
+- **Status**: Dropdown (Todos, Ativos, Pausados, Bloqueados)
+- **Performance**: Dropdown (Todos, Alto ROI, Baixo ROI, Negativos)
+- **Data de cadastro**: Date range picker
+- **Busca**: Por nome, email ou canal
+- **Ordenação**: Nome, data, receita, clientes
+
+#### Tabela de Tipsters
+**Colunas:**
+| Coluna | Descrição | Ordenável | Ações |
+|--------|-----------|-----------|--------|
+| **Tipster** | Avatar + Nome + Email | ✅ | - |
+| **Canais** | Quantidade de canais ativos | ✅ | Ver canais |
+| **Clientes** | Total de assinantes | ✅ | Ver clientes |
+| **Receita** | MRR total dos canais | ✅ | Ver detalhes |
+| **ROI Médio** | Performance consolidada | ✅ | - |
+| **Status** | Badge (Ativo/Pausado/Bloqueado) | ✅ | Alterar |
+| **Cadastro** | Data de criação | ✅ | - |
+| **Ações** | Menu de opções | ❌ | Expandir |
+
+**Menu de Ações por Tipster:**
+- **Ver Perfil** → Modal com informações completas
+- **Editar Dados** → Modal de edição
+- **Ver Canais** → Lista de canais do tipster
+- **Criar Canal** → Modal de criação de canal (Admin responsabilidade)
+- **Ver Clientes** → Lista de assinantes
+- **Pausar/Ativar** → Toggle de status
+- **Bloquear** → Suspensão temporária ou permanente
+- **Excluir** → Remoção completa (com confirmações)
+
+### 4.2 Modal: Adicionar Tipster
+## 🎯 MVP - MUST HAVE
+
+**Campos obrigatórios:**
+- **Nome completo**: Input de texto
+- **Email**: Input com validação de unicidade
+- **Telefone**: Input com máscara brasileira
+- **@ do Telegram**: Username sem @ (ex: joaosilva)
+- **Especialidades**: Checkboxes (Futebol, Basquete, Tênis, etc.)
+- **Biografia**: Textarea opcional
+- **Foto de perfil**: Upload opcional
+
+**Validações específicas do Telegram:**
+- **Username**: Apenas letras, números e underscore
+- **Comprimento**: Entre 5 e 32 caracteres
+- **Unicidade**: Verificação se já está em uso no sistema
+- **Formato**: Sem @ inicial
+
+**Processo automático:**
+1. **Admin** preenche dados (incluindo @ do Telegram)
+2. **Sistema** valida dados e unicidade
+3. **Senha temporária** é gerada
+4. **Email** com credenciais é enviado
+5. **Tipster** aparece na tabela como "Pendente"
+6. **Após primeiro login** → Status muda para "Ativo"
+
+---
+
+## 5. Gestão de Canais (/admin/canais)
+
+### 5.1 Visão Geral de Todos os Canais
+## 🎯 MVP - MUST HAVE
+
+#### Header da Página
+**Elementos:**
+- **Título**: "Gestão Global de Canais"
+- **Contador**: "X canais ativos • Y pausados • Z total"
+- **CTA**: "Criar Novo Canal" → Modal de criação
+- **Filtros**: Status, tipster, performance, receita
+- **Busca**: Por nome do canal ou tipster
+
+#### Filtros Específicos
+**Barra de filtros:**
+- **Status**: Todos, Ativos, Pausados, Configurando
+- **Tipster**: Dropdown com lista de tipsters
+- **Performance**: Alto ROI, Médio ROI, Baixo ROI, Negativos
+- **Receita**: Faixas de MRR (R$ 0-500, R$ 500-2k, etc.)
+- **Data criação**: Range de datas
+- **Vagas**: Disponíveis, Lotados, Lista de espera
+
+#### Tabela Global de Canais
+**Colunas:**
+| Coluna | Descrição | Ordenável | Ações |
+|--------|-----------|-----------|--------|
+| **Canal** | Nome + @ + Status Bot | ✅ | Ver detalhes |
+| **Tipster** | Nome do dono | ✅ | Ver perfil |
+| **Status** | Badge colorido | ✅ | Alterar |
+| **Telegram** | ID + Link + Sincronização | ❌ | Reconectar |
+| **Assinantes** | X/Y (atual/máximo) | ✅ | Ver lista |
+| **Receita** | MRR em R$ | ✅ | Ver histórico |
+| **ROI** | Performance % | ✅ | Ver apostas |
+| **Criado** | Data de criação | ✅ | - |
+| **Ações** | Menu completo | ❌ | Expandir |
+
+**Status da Integração Telegram:**
+- **🟢 Sincronizado**: Bot funcionando, canal criado com sucesso
+- **🟡 Criando**: Processo de criação em andamento
+- **🔴 Erro**: Falha na integração, requer atenção
+- **⚫ Não configurado**: Canal ainda não foi criado
+
+**Menu de ações por canal:**
+- **Ver detalhes** → Modal completo do canal
+- **Editar configurações** → Modal de edição
+- **Ver tipster** → Perfil do dono
+- **Ver assinantes** → Lista de clientes
+- **Ver apostas** → Histórico de performance
+- **Pausar/Ativar** → Controle de status
+- **Reconectar Telegram** → Re-sincronizar bot
+- **Recriar Canal** → Se houve problemas na criação
+- **Transferir** → Mudar para outro tipster
+- **Excluir** → Remoção completa
+
+### 5.2 Modal: Criar Canal
+## 🎯 MVP - MUST HAVE
+
+**Campos obrigatórios:**
+- **Tipster**: Dropdown com lista de tipsters ativos
+- **Nome do canal**: Input de texto (ex: "João Silva VIP")
+- **@ do Canal Telegram**: Username do canal (ex: joaosilvavip)
+- **Descrição**: Textarea com estratégia e mercados
+- **Preço mensal**: Input numérico em R$
+- **Máximo de assinantes**: Input numérico (limite de vagas)
+- **Mercados principais**: Checkboxes (Futebol, Basquete, etc.)
+- **Casas recomendadas**: Multi-select (Bet365, Sportingbet, etc.)
+
+**Campos automáticos:**
+- **ID do Canal**: Obtido após criação no Telegram via bot
+- **Link do Canal**: Gerado automaticamente (t.me/username)
+- **Status Telegram**: Criado/Criando/Erro
+
+**Processo de criação:**
+1. **Admin** preenche dados do canal
+2. **Sistema** valida @ do canal (deve estar disponível)
+3. **Bot** cria canal automaticamente no Telegram
+4. **ID do canal** é obtido e armazenado
+5. **Canal** é associado ao tipster no sistema
+6. **Status inicial**: "Configurando" até estar pronto
+7. **Notificação**: Email para tipster sobre novo canal
+
+**Validações específicas:**
+- **@ do Canal**: Username único globalmente (formato: sem @, 5-32 chars)
+- **@ disponível**: Verificação via API se @ está livre no Telegram
+- **Preço**: Entre R$ 10,00 e R$ 500,00
+- **Limite**: Entre 10 e 1000 assinantes
+- **Criação automática**: Bot cria canal e obtém ID
+
+### 5.3 Integração com Telegram
+**Configuração automática:**
+- **Bot principal**: @bethub_bot (ou customizado)
+- **Criação de canais**: Automática via API
+- **Obtenção de IDs**: Automática após criação
+- **Gerenciamento de membros**: Automático via bot
+- **Verificação de status**: Ping regular para saúde dos canais
+
+**Processo automatizado:**
+1. **Admin** cria canal no sistema
+2. **Bot** cria canal no Telegram com @ especificado
+3. **Sistema** obtém ID do canal criado
+4. **Bot** configura permissões e descrição
+5. **Canal** fica disponível para assinaturas
+6. **Membros** são adicionados/removidos automaticamente
+
+---
+
+## 6. Solicitações de Canais (/admin/solicitacoes)
+
+### 6.1 Nova Seção: Solicitações Pendentes
+## 🎯 MVP - MUST HAVE
+
+#### Header da Página
+**Elementos:**
+- **Título**: "Solicitações de Canais"
+- **Contador**: "X solicitações pendentes"
+- **Filtros**: Status, tipster, data
+
+#### Tabela de Solicitações
+**Colunas:**
+| Coluna | Descrição | Ações |
+|--------|-----------|--------|
+| **Tipster** | Nome + Email | Ver perfil |
+| **Canal Solicitado** | Nome e descrição | Ver detalhes |
+| **Preço** | Valor proposto | - |
+| **Data** | Quando foi solicitado | - |
+| **Status** | Pendente/Aprovado/Rejeitado | Alterar |
+| **Ações** | Aprovar/Rejeitar/Editar | Menu |
+
+#### Modal: Revisar Solicitação
+**Informações da solicitação:**
+- **Dados do tipster**: Nome, histórico, performance
+- **Detalhes do canal**: Nome, descrição, preço, mercados
+- **Justificativa**: Motivo da solicitação
+
+**Ações do admin:**
+- **Aprovar** → Cria canal automaticamente
+- **Rejeitar** → Com motivo obrigatório
+- **Solicitar alterações** → Volta para tipster
+- **Aprovar com modificações** → Admin ajusta dados
+
+### 6.2 Fluxo de Aprovação
+**Processo completo:**
+1. **Tipster** solicita canal na sua área
+2. **Solicitação** aparece em /admin/solicitacoes
+3. **Admin** revisa e decide
+4. **Se aprovado** → Canal é criado automaticamente
+5. **Tipster** é notificado por email
+6. **Canal** fica disponível no sistema
+
+---
+
+## 7. Gestão de Clientes (/admin/clientes)
+
+### 7.1 Estrutura da Página
+## 🎯 MVP - MUST HAVE
+
+#### Header da Página
+**Elementos:**
+- **Título**: "Gestão de Clientes"
+- **Contador**: "X clientes cadastrados"
+- **Filtros**: Status, data de cadastro, atividade
+- **Busca**: Por nome, email ou telefone
+
+#### Filtros Específicos
+**Barra de filtros:**
+- **Status**: Dropdown (Todos, Ativos, Inativos, Bloqueados)
+- **Assinaturas**: Dropdown (Com assinatura, Sem assinatura, Canceladas)
+- **Atividade**: Dropdown (Ativos 7d, 30d, Inativos 90d+)
+- **Data de cadastro**: Date range picker
+- **Valor gasto**: Range slider (R$ 0 a R$ 1000+)
+
+#### Tabela de Clientes
+**Colunas:**
+| Coluna | Descrição | Ordenável | Dados |
+|--------|-----------|-----------|--------|
+| **Cliente** | Nome + Email + Telefone | ✅ | Dados pessoais |
+| **Telegram** | @ do usuário | ❌ | Username |
+| **Assinaturas** | Quantidade ativa | ✅ | Número |
+| **Gasto Total** | Valor acumulado | ✅ | R$ valor |
+| **Último Acesso** | Data da última atividade | ✅ | Data |
+| **Status** | Badge colorido | ✅ | Estado |
+| **Cadastro** | Data de registro | ✅ | Data |
+| **Ações** | Menu de opções | ❌ | - |
+
+---
+
+## 8. Relatórios e Analytics (/admin/relatorios)
+
+### 8.1 Estrutura da Página
+## 🎯 MVP - MUST HAVE
+
+#### Filtros Globais
+**Controles de período:**
+- **Período**: 7d, 30d, 90d, 6m, 1a, personalizado
+- **Comparação**: vs período anterior
+- **Segmentação**: Por tipster, canal, cliente
+- **Export**: Todos os relatórios para PDF/Excel
+
+#### Relatório: Visão Geral
+**Métricas principais:**
+- **Usuários**: Crescimento de tipsters e clientes
+- **Canais**: Evolução da quantidade de canais
+- **Receita**: Evolução da receita da plataforma
+- **Engajamento**: Atividade por tipo de usuário
+
+#### Relatório: Performance de Canais
+**Análise detalhada:**
+- **Ranking de canais**: Por receita, ROI, crescimento
+- **Distribuição**: Assinantes por canal e tipster
+- **Sazonalidade**: Padrões de performance temporal
+- **Benchmarks**: Comparação entre canais similares
+
+#### Relatório: Performance de Tipsters
+**Ranking e métricas:**
+- **Top 10 tipsters**: Por receita, ROI, clientes
+- **Performance média**: Benchmarks da plataforma
+- **Crescimento**: Evolução individual
+- **Churn**: Taxa de saída por tipster
+
+#### Relatório: Comportamento de Clientes
+**Análise de engajamento:**
+- **Retenção**: Curvas de retenção mensal
+- **LTV**: Lifetime value por segmento
+- **Churn**: Motivos de cancelamento
+- **Sazonalidade**: Padrões temporais
+
+#### Relatório: Financeiro (Master)
+**Análise de receita:**
+- **Comissões**: Evolução das comissões
+- **Breakdown**: Por tipster, canal e período
+- **Projeções**: Estimativas de crescimento
+- **Custos**: Operacionais vs receita
+
+---
+
+## 9. Configurações (Apenas Master) (/admin/configuracoes)
+
+### 9.1 Estrutura da Página
+## 🎯 MVP - MUST HAVE
+
+#### Navegação por Abas
+**Aba 1: Configurações Gerais**
+- **Nome da plataforma**: BetLink
+- **Logo**: Upload de imagem
+- **Cores**: Tema da plataforma
+- **Idioma**: Português (BR)
+- **Fuso horário**: América/São_Paulo
+
+**Aba 2: Configurações Financeiras**
+- **Taxa de comissão**: % sobre receita dos tipsters
+- **Formas de pagamento**: Stripe, Mercado Pago
+- **Moeda**: Real brasileiro (BRL)
+- **Dias para repasse**: Periodicidade de pagamentos
+- **Configurações de PIX**: Chaves e limites
+
+**Aba 3: Configurações de Email**
+- **Provedor SMTP**: Resend, SendGrid
+- **Templates**: Personalização de emails
+- **Remetente**: Nome e email padrão
+- **Assinatura**: Rodapé dos emails
+
+**Aba 4: Configurações do Telegram**
+- **Bot principal**: @bethub_bot token e configurações
+- **API Telegram**: Configuração para obter IDs
+- **Criação automática**: Configurar bot para criar canais
+- **Webhooks**: URLs de callback para sincronização
+- **Rate limiting**: Limites de uso da API
+- **Templates**: Mensagens automáticas dos bots
+- **Monitoramento**: Status de saúde das integrações
+
+**Aba 5: Gestão de Admins**
+- **Lista de admins**: Tabela com admins ativos
+- **Adicionar admin**: Modal de criação
+- **Permissões**: Controle granular de acesso
+- **Logs de atividade**: Auditoria de ações
+
+---
+
+## 10. Sistema de Suporte (/admin/suporte)
+
+### 10.1 Estrutura da Página
+## 🎯 MVP - MUST HAVE
+
+#### Dashboard de Tickets
+**Métricas de suporte:**
+- **Tickets abertos**: Quantidade pendente
+- **Solicitações de canais**: Quantidade pendente
+- **Tempo médio**: De resposta e resolução
+- **Satisfação**: Rating médio dos usuários
+- **Volume**: Tickets por dia/semana
+
+#### Lista de Tickets e Solicitações
+**Filtros:**
+- **Tipo**: Tickets, Solicitações de Canal, Problemas Técnicos
+- **Status**: Aberto, Em andamento, Resolvido, Fechado
+- **Prioridade**: Alta, Média, Baixa
+- **Usuário**: Tipster ou Cliente
+
+---
+
+## 11. Ações Administrativas Consolidadas
+
+### 11.1 Ações Disponíveis (Admin)
+## 🎯 MVP - MUST HAVE
+
+**Gestão de Tipsters:**
+- **Criar tipster** → Modal com validação Telegram
+- **Editar dados** → Incluindo @ do Telegram
+- **Pausar/ativar** → Controle de status
+- **Ver canais** → Lista de canais do tipster
+
+**Gestão de Canais (Responsabilidade Principal):**
+- **Criar canal** → Para qualquer tipster
+- **Verificar Telegram** → Obter/atualizar IDs
+- **Reconectar bots** → Re-sincronizar integrações
+- **Transferir propriedade** → Entre tipsters
+- **Pausar em massa** → Por critérios específicos
+- **Alterar configurações** → Preços, limites, etc.
+
+**Solicitações:**
+- **Aprovar solicitações** → Criar canais automaticamente
+- **Rejeitar com motivo** → Feedback para tipster
+- **Solicitar alterações** → Processo iterativo
+
+**Monitoramento:**
+- **Status Telegram** → Saúde das integrações
+- **Performance canais** → Alertas automáticos
+- **Exportar dados** → Relatórios customizados

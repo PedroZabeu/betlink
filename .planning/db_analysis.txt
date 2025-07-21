@@ -1,0 +1,292 @@
+# BetLink - Análise Completa do Database
+
+## 1. 📊 Informações do Front que Dependem do DB (Por Página)
+
+### **ÁREA PÚBLICA**
+
+#### **Landing Page (/)**
+- **Estatísticas da plataforma**: `COUNT(canais)`, `COUNT(profiles WHERE role='cliente')`, `AVG(roi)`, `COUNT(apostas)`
+- **Canais em destaque**: `canais` + `canal_stats` (top 6 por ROI ou receita)
+- **Depoimentos**: Futuramente de `avaliacoes` ou estático
+
+#### **Página de Canais (/canais)**
+- **Lista de canais**: `canais` + `profiles` (tipster) + `canal_stats`
+- **Filtros**: `canais.preco_mensal`, `canal_stats.roi_percentage`, `canais.status`
+- **Cards de canais**: Nome, avatar, ROI, total apostas, preço, status vagas
+- **Contador**: `COUNT(canais WHERE status='ativo')`
+
+#### **Página Individual do Canal (/canal/[id])**
+- **Dados do canal**: `canais` + `profiles` (tipster)
+- **Métricas**: `canal_stats` (ROI, total apostas, taxa acerto)
+- **Status de vagas**: `COUNT(assinaturas)` vs `canais.max_assinantes`
+
+### **ÁREA DO CLIENTE**
+
+#### **Dashboard (/dashboard)**
+- **Cards resumo**: 
+  - Quantidade assinaturas: `COUNT(assinaturas WHERE cliente_id = user.id)`
+  - Custo total: `SUM(assinaturas.preco_pago WHERE status='ativa')`
+- **Tabela de canais**: `assinaturas` + `canais` + `profiles`
+- **Status badges**: `assinaturas.status`, `assinaturas.data_vencimento`
+
+### **ÁREA DO TIPSTER**
+
+#### **Meus Canais (/meus-canais)**
+- **Grid de canais**: `canais` + `canal_stats`
+- **Solicitações pendentes**: `solicitacoes_canais WHERE tipster_id = user.id`
+- **Contador**: `COUNT(canais WHERE tipster_id = user.id)`
+
+#### **Solicitar Canal (/solicitar-canal)**
+- **Validação username**: Verificar se `telegram_username` está disponível
+- **Dados do tipster**: `profiles` para preencher automaticamente
+
+#### **Página do Canal - Clientes (/[canal]/clientes)**
+- **Cards resumo**: `canal_stats` (clientes ativos, lista espera, receita)
+- **Gráfico temporal**: `assinaturas` agrupadas por mês
+- **Tabela clientes**: `assinaturas` + `profiles`
+
+#### **Página do Canal - Apostas (/[canal]/apostas)**
+- **Cards resumo**: Calculados de `apostas` (unidades lucradas, apostadas, ROI)
+- **Gráfico acumulado**: `apostas` ordenadas por data
+- **Tabela apostas**: `apostas` com filtros
+
+#### **Minhas Solicitações (/minhas-solicitacoes)**
+- **Tabela solicitações**: `solicitacoes_canais WHERE tipster_id = user.id`
+- **Status e observações**: `solicitacoes_canais.status`, `observacoes_admin`
+
+### **ÁREA ADMIN**
+
+#### **Dashboard Admin (/admin/dashboard)**
+- **Cards métricas**: `COUNT(*)` de cada tabela principal
+- **Gráficos**: Dados agrupados por período de `canais`, `profiles`, `assinaturas`
+- **Atividades recentes**: `logs_atividade` (últimas 20)
+- **Alertas**: Calculados (vencimentos, problemas, solicitações pendentes)
+
+#### **Gestão de Tipsters (/admin/tipsters)**
+- **Tabela tipsters**: `profiles WHERE role='tipster'` + `canal_stats` agregadas
+- **Filtros**: `profiles.status`, performance calculada, datas
+
+#### **Gestão de Canais (/admin/canais)**
+- **Tabela global**: `canais` + `profiles` + `canal_stats`
+- **Status Telegram**: `canais.telegram_sync_status`
+- **Filtros**: Status, tipster, performance, receita
+
+#### **Solicitações (/admin/solicitacoes)**
+- **Tabela solicitações**: `solicitacoes_canais` + `profiles`
+- **Filtros**: Status, tipster, data
+
+#### **Gestão de Clientes (/admin/clientes)**
+- **Tabela clientes**: `profiles WHERE role='cliente'` + dados agregados
+- **Métricas**: `assinaturas` e `pagamentos` agregados
+
+#### **Relatórios (/admin/relatorios)**
+- **Todos os gráficos**: Dados agregados de todas as tabelas principais
+- **Métricas consolidadas**: Views calculadas ou queries complexas
+
+---
+
+## 2. 🗃️ Tabelas que Devem Ser Criadas
+
+### **TABELAS PRINCIPAIS (Obrigatórias)**
+1. **`profiles`** - Extensão do auth.users do Supabase
+2. **`canais`** - Canais de tips
+3. **`solicitacoes_canais`** - Solicitações de novos canais
+4. **`assinaturas`** - Assinaturas de clientes aos canais
+5. **`apostas`** - Apostas dos tipsters (apenas via Telegram)
+6. **`lista_espera`** - Fila de espera para canais lotados
+7. **`pagamentos`** - Histórico de pagamentos
+8. **`logs_atividade`** - Auditoria de ações
+9. **`configuracoes`** - Configurações do sistema
+
+### **TABELAS FUTURAS (Nice to Have)**
+10. **`avaliacoes`** - Avaliações de clientes sobre canais
+11. **`promocoes`** - Códigos promocionais
+12. **`notificacoes`** - Sistema de notificações
+13. **`tickets_suporte`** - Sistema de suporte
+14. **`webhook_logs`** - Logs da integração Telegram
+
+---
+
+## 3. 🔗 Relações Entre Tabelas
+
+### **DIAGRAMA DE RELACIONAMENTOS**
+
+```
+auth.users (Supabase)
+    ↓ 1:1
+profiles (role: master/admin/tipster/cliente)
+    ↓ 1:N
+canais (tipster_id → profiles.id)
+    ↓ 1:N                    ↓ 1:N
+assinaturas              apostas
+(cliente_id → profiles.id)
+    ↓ 1:N
+pagamentos
+
+profiles (tipster)
+    ↓ 1:N
+solicitacoes_canais
+    ↓ 1:1 (se aprovado)
+canais (canal_criado_id)
+
+canais
+    ↓ 1:N
+lista_espera (cliente_id → profiles.id)
+```
+
+### **RELACIONAMENTOS DETALHADOS**
+
+#### **`profiles` (Central)**
+- **1:N** com `canais` (tipster_id)
+- **1:N** com `assinaturas` (cliente_id)
+- **1:N** com `solicitacoes_canais` (tipster_id)
+- **1:N** com `lista_espera` (cliente_id)
+- **1:N** com `logs_atividade` (user_id)
+
+#### **`canais`**
+- **N:1** com `profiles` (tipster_id)
+- **1:N** com `assinaturas` (canal_id)
+- **1:N** com `apostas` (canal_id)
+- **1:N** com `lista_espera` (canal_id)
+- **1:1** com `solicitacoes_canais` (canal_criado_id)
+
+#### **`assinaturas`**
+- **N:1** com `profiles` (cliente_id)
+- **N:1** com `canais` (canal_id)
+- **1:N** com `pagamentos` (assinatura_id)
+
+#### **`apostas`**
+- **N:1** com `canais` (canal_id)
+- **Sem relacionamento direto** com clientes (transparência)
+
+---
+
+## 4. ⚠️ Pontos de Atenção (Sincronização)
+
+### **CONSISTÊNCIA DE DADOS**
+
+#### **Métricas de Canais (CRÍTICO)**
+**Problema**: ROI, total apostas, receita aparecem em múltiplas telas
+**Solução**: 
+- **View `canal_stats`** calculada em tempo real
+- **Triggers** para recalcular quando apostas/assinaturas mudam
+- **Cache inteligente** no frontend (5 min)
+
+**Telas afetadas**:
+- `/canais` (cards dos canais)
+- `/canal/[id]` (métricas do canal)
+- `/[canal]/clientes` (cards resumo)
+- `/[canal]/apostas` (cards resumo)
+- `/admin/canais` (tabela global)
+
+#### **Status de Assinaturas (CRÍTICO)**
+**Problema**: Status aparece no dashboard cliente e área admin
+**Solução**:
+- **Cálculo automático** baseado em `data_vencimento`
+- **Trigger diário** para atualizar status vencidos
+- **Sincronização Telegram** automática
+
+**Telas afetadas**:
+- `/dashboard` (tabela de canais)
+- `/[canal]/clientes` (lista de clientes)
+- `/admin/clientes` (status global)
+
+#### **Contadores de Usuários (MÉDIO)**
+**Problema**: Total de tipsters/clientes no dashboard admin
+**Solução**:
+- **Queries COUNT()** em tempo real
+- **Cache** de 1 hora para estatísticas
+- **Invalidação** quando novos usuários são criados
+
+#### **Sincronização Telegram (CRÍTICO)**
+**Problema**: Status do Telegram deve refletir realidade
+**Solução**:
+- **Campo `telegram_sync_status`** em canais
+- **Webhook** para atualizações em tempo real
+- **Job** para verificação periódica de saúde
+
+### **INTEGRIDADE REFERENCIAL**
+
+#### **Exclusões em Cascata**
+- **Tipster deletado** → Canais ficam órfãos ❌
+- **Solução**: `ON DELETE RESTRICT` + transferência manual
+
+#### **Assinaturas Ativas**
+- **Canal pausado** → Assinaturas continuam ativas ✅
+- **Canal deletado** → Assinaturas canceladas automaticamente ✅
+
+---
+
+## 5. 💾 Dados Inputados vs Calculados
+
+### **DADOS INPUTADOS (Manual)**
+
+#### **Por Admins**
+- **Tipsters**: Nome, email, telefone, telegram_username, biografia
+- **Canais**: Nome, descrição, preço, max_assinantes, mercados
+- **Configurações**: Bot tokens, comissões, configurações gerais
+
+#### **Por Tipsters**
+- **Solicitações**: Todos os campos do formulário de solicitação
+- **Status das apostas**: Única alteração permitida nas apostas
+
+#### **Por Clientes**
+- **Perfil**: Nome, telefone, telegram_username no cadastro
+- **Assinaturas**: Ação de assinar/cancelar
+
+#### **Por Sistema Externo (Telegram)**
+- **Apostas**: Todos os campos via template do bot
+- **Telegram IDs**: Obtidos automaticamente via API
+
+### **DADOS CALCULADOS (Automático)**
+
+#### **Triggers em Tempo Real**
+- **`apostas.lucro_calculado`**: Baseado em status, odd, stake
+- **`updated_at`**: Timestamp automático em todas as tabelas
+- **`assinaturas.status`**: Baseado em data_vencimento vs data atual
+
+#### **Views Calculadas**
+- **`canal_stats`**: ROI, receita, total apostas, assinantes
+- **`tipster_dashboard`**: Métricas consolidadas por tipster
+- **Estatísticas gerais**: Contadores para dashboards
+
+#### **Jobs Periódicos (Necessários)**
+- **Status de assinaturas**: Diário (vencidas → período graça → canceladas)
+- **Sincronização Telegram**: A cada 5 min (saúde dos canais)
+- **Limpeza de logs**: Mensal (manter apenas 90 dias)
+- **Processamento de lista de espera**: Quando vaga abre
+
+#### **Cálculos Dinâmicos (Queries)**
+- **Métricas de período**: ROI 30d, 90d, YTD (baseado em filtros)
+- **Rankings**: Top tipsters, canais (calculado em tempo real)
+- **Dashboards**: Todos os gráficos e estatísticas
+
+### **PIPELINE DE DADOS**
+
+```
+1. INPUT (Manual/Bot) → 2. VALIDATION → 3. TRIGGERS → 4. VIEWS → 5. FRONTEND
+```
+
+**Exemplo - Nova Aposta**:
+1. **Bot recebe** template do Telegram
+2. **Validação** de formato e autorização
+3. **Insert** em `apostas` + **trigger** calcula lucro
+4. **View** `canal_stats` atualizada automaticamente
+5. **Frontend** busca dados atualizados
+
+---
+
+## 🎯 RESUMO EXECUTIVO
+
+### **TABELAS CRÍTICAS**: 9 principais
+### **RELACIONAMENTOS**: Bem definidos com integridade referencial
+### **SINCRONIZAÇÃO**: 4 pontos críticos identificados
+### **AUTOMAÇÃO**: 80% dos dados calculados automaticamente
+### **PERFORMANCE**: Views otimizadas + índices estratégicos
+
+### **PRÓXIMOS PASSOS**:
+1. ✅ Implementar schema base
+2. ✅ Criar triggers automáticos  
+3. ✅ Desenvolver views otimizadas
+4. ✅ Configurar jobs periódicos
+5. ✅ Implementar cache inteligente

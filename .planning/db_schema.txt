@@ -1,0 +1,511 @@
+-- BetLink Database Schema
+-- Supabase + PostgreSQL
+
+-- =============================================
+-- 1. AUTENTICAÇÃO E USUÁRIOS (Supabase Auth)
+-- =============================================
+
+-- Tabela nativa do Supabase (auth.users)
+-- Gerenciada automaticamente, contém:
+-- - id (UUID)
+-- - email
+-- - encrypted_password
+-- - email_confirmed_at
+-- - created_at, updated_at
+
+-- =============================================
+-- 2. PERFIS DE USUÁRIOS
+-- =============================================
+
+CREATE TYPE user_role AS ENUM ('master', 'admin', 'tipster', 'cliente');
+CREATE TYPE user_status AS ENUM ('ativo', 'pausado', 'bloqueado', 'pendente');
+
+CREATE TABLE profiles (
+    id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+    
+    -- Dados Básicos
+    nome_completo TEXT NOT NULL,
+    avatar_url TEXT,
+    telefone VARCHAR(15), -- Formato: (11) 99999-9999
+    
+    -- Telegram (obrigatório para tipsters e clientes)
+    telegram_username VARCHAR(32) UNIQUE, -- Sem @, ex: "joaosilva"
+    telegram_id BIGINT UNIQUE, -- ID numérico do Telegram (obtido via bot)
+    
+    -- Sistema
+    role user_role NOT NULL DEFAULT 'cliente',
+    status user_status NOT NULL DEFAULT 'ativo',
+    
+    -- Metadados
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    last_login_at TIMESTAMPTZ,
+    
+    -- Constraints
+    CONSTRAINT telegram_required_for_tipster_cliente 
+        CHECK (
+            (role IN ('tipster', 'cliente') AND telegram_username IS NOT NULL) OR 
+            (role IN ('master', 'admin'))
+        )
+);
+
+-- Indexes
+CREATE INDEX idx_profiles_role ON profiles(role);
+CREATE INDEX idx_profiles_status ON profiles(status);
+CREATE INDEX idx_profiles_telegram_username ON profiles(telegram_username);
+
+-- =============================================
+-- 3. CANAIS
+-- =============================================
+
+CREATE TYPE canal_status AS ENUM ('ativo', 'pausado', 'configurando');
+CREATE TYPE telegram_sync_status AS ENUM ('sincronizado', 'criando', 'erro', 'nao_configurado');
+
+CREATE TABLE canais (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    
+    -- Relacionamentos
+    tipster_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    created_by UUID REFERENCES profiles(id) NOT NULL, -- Admin que criou
+    
+    -- Dados Básicos
+    nome VARCHAR(100) NOT NULL,
+    descricao TEXT,
+    preco_mensal DECIMAL(10,2) NOT NULL CHECK (preco_mensal >= 10.00),
+    max_assinantes INTEGER NOT NULL CHECK (max_assinantes >= 10),
+    
+    -- Telegram
+    telegram_username VARCHAR(32) UNIQUE, -- Username do canal (sem @)
+    telegram_id BIGINT UNIQUE, -- ID do canal no Telegram
+    telegram_link TEXT, -- Link t.me/username
+    telegram_sync_status telegram_sync_status DEFAULT 'nao_configurado',
+    
+    -- Configurações
+    mercados_principais TEXT[], -- ['futebol', 'basquete']
+    casas_recomendadas TEXT[], -- ['bet365', 'sportingbet']
+    horarios_atividade TEXT[], -- ['manha', 'tarde']
+    periodo_graca_dias INTEGER DEFAULT 3,
+    
+    -- Status
+    status canal_status DEFAULT 'configurando',
+    
+    -- Metadados
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX idx_canais_tipster_id ON canais(tipster_id);
+CREATE INDEX idx_canais_status ON canais(status);
+CREATE INDEX idx_canais_telegram_sync ON canais(telegram_sync_status);
+
+-- =============================================
+-- 4. SOLICITAÇÕES DE CANAIS
+-- =============================================
+
+CREATE TYPE solicitacao_status AS ENUM ('pendente', 'aprovado', 'rejeitado', 'alteracoes_solicitadas');
+
+CREATE TABLE solicitacoes_canais (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    
+    -- Relacionamentos
+    tipster_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    admin_id UUID REFERENCES profiles(id), -- Admin que analisou
+    
+    -- Dados Solicitados
+    nome VARCHAR(100) NOT NULL,
+    telegram_username_desejado VARCHAR(32) NOT NULL,
+    descricao TEXT NOT NULL,
+    preco_mensal DECIMAL(10,2) NOT NULL,
+    max_assinantes INTEGER NOT NULL,
+    mercados_principais TEXT[] NOT NULL,
+    casas_recomendadas TEXT[],
+    justificativa TEXT NOT NULL,
+    
+    -- Processo
+    status solicitacao_status DEFAULT 'pendente',
+    observacoes_admin TEXT, -- Feedback do admin
+    canal_criado_id UUID REFERENCES canais(id), -- Se aprovado
+    
+    -- Metadados
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    analisado_at TIMESTAMPTZ
+);
+
+-- Indexes
+CREATE INDEX idx_solicitacoes_tipster_id ON solicitacoes_canais(tipster_id);
+CREATE INDEX idx_solicitacoes_status ON solicitacoes_canais(status);
+CREATE INDEX idx_solicitacoes_admin_id ON solicitacoes_canais(admin_id);
+
+-- =============================================
+-- 5. ASSINATURAS
+-- =============================================
+
+CREATE TYPE assinatura_status AS ENUM ('ativa', 'vencida', 'cancelada', 'periodo_graca');
+CREATE TYPE origem_assinatura AS ENUM ('organica', 'promocao', 'vip');
+
+CREATE TABLE assinaturas (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    
+    -- Relacionamentos
+    cliente_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    canal_id UUID REFERENCES canais(id) ON DELETE CASCADE NOT NULL,
+    
+    -- Dados da Assinatura
+    preco_pago DECIMAL(10,2) NOT NULL, -- Pode ter desconto
+    desconto_aplicado DECIMAL(5,2) DEFAULT 0, -- Porcentagem
+    codigo_promocional VARCHAR(20),
+    origem origem_assinatura DEFAULT 'organica',
+    
+    -- Datas
+    data_inicio DATE NOT NULL DEFAULT CURRENT_DATE,
+    data_vencimento DATE NOT NULL,
+    data_cancelamento TIMESTAMPTZ,
+    
+    -- Status
+    status assinatura_status DEFAULT 'ativa',
+    
+    -- Telegram
+    adicionado_telegram_at TIMESTAMPTZ, -- Quando foi adicionado ao canal
+    removido_telegram_at TIMESTAMPTZ, -- Quando foi removido
+    
+    -- Metadados
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Constraints
+    UNIQUE(cliente_id, canal_id) -- Cliente não pode ter assinatura duplicada
+);
+
+-- Indexes
+CREATE INDEX idx_assinaturas_cliente_id ON assinaturas(cliente_id);
+CREATE INDEX idx_assinaturas_canal_id ON assinaturas(canal_id);
+CREATE INDEX idx_assinaturas_status ON assinaturas(status);
+CREATE INDEX idx_assinaturas_vencimento ON assinaturas(data_vencimento);
+
+-- =============================================
+-- 6. APOSTAS (Apenas via Telegram)
+-- =============================================
+
+CREATE TYPE aposta_status AS ENUM ('open', 'green', 'half_green', 'red', 'half_red', 'void', 'drop', 'cancelada');
+
+CREATE TABLE apostas (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    
+    -- Relacionamentos
+    canal_id UUID REFERENCES canais(id) ON DELETE CASCADE NOT NULL,
+    
+    -- Dados da Aposta (Imutáveis - vêm do Telegram)
+    data_tip TIMESTAMPTZ NOT NULL, -- Quando foi enviada
+    data_evento TIMESTAMPTZ NOT NULL, -- Quando é o evento
+    descricao TEXT NOT NULL,
+    bookie VARCHAR(50),
+    odd DECIMAL(8,4) NOT NULL CHECK (odd > 1.0),
+    stake DECIMAL(6,2) NOT NULL CHECK (stake > 0),
+    link_adicional TEXT,
+    
+    -- Status (Único campo editável)
+    status aposta_status DEFAULT 'open',
+    
+    -- Telegram
+    telegram_message_id BIGINT, -- ID da mensagem no Telegram
+    telegram_bot_response TEXT, -- Resposta do bot
+    
+    -- Cálculos automáticos
+    lucro_calculado DECIMAL(10,4) DEFAULT 0,
+    
+    -- Metadados (Imutáveis)
+    created_at TIMESTAMPTZ DEFAULT NOW() -- Data de criação no sistema
+);
+
+-- Indexes
+CREATE INDEX idx_apostas_canal_id ON apostas(canal_id);
+CREATE INDEX idx_apostas_status ON apostas(status);
+CREATE INDEX idx_apostas_data_evento ON apostas(data_evento);
+CREATE INDEX idx_apostas_data_tip ON apostas(data_tip);
+
+-- =============================================
+-- 7. LISTA DE ESPERA
+-- =============================================
+
+CREATE TABLE lista_espera (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    
+    -- Relacionamentos
+    cliente_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    canal_id UUID REFERENCES canais(id) ON DELETE CASCADE NOT NULL,
+    
+    -- Posição na fila
+    posicao INTEGER NOT NULL,
+    
+    -- Controle de convite
+    convidado_at TIMESTAMPTZ, -- Quando foi convidado
+    convite_expira_at TIMESTAMPTZ, -- 24h para aceitar
+    resposta_at TIMESTAMPTZ, -- Quando respondeu
+    aceito BOOLEAN, -- true = aceito, false = recusado
+    
+    -- Metadados
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Constraints
+    UNIQUE(cliente_id, canal_id) -- Cliente só pode estar uma vez na lista
+);
+
+-- Indexes
+CREATE INDEX idx_lista_espera_canal_id ON lista_espera(canal_id);
+CREATE INDEX idx_lista_espera_posicao ON lista_espera(posicao);
+
+-- =============================================
+-- 8. PAGAMENTOS
+-- =============================================
+
+CREATE TYPE pagamento_status AS ENUM ('pendente', 'aprovado', 'recusado', 'estornado');
+CREATE TYPE pagamento_metodo AS ENUM ('stripe', 'mercado_pago', 'pix');
+
+CREATE TABLE pagamentos (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    
+    -- Relacionamentos
+    assinatura_id UUID REFERENCES assinaturas(id) ON DELETE CASCADE NOT NULL,
+    cliente_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    
+    -- Dados do Pagamento
+    valor DECIMAL(10,2) NOT NULL,
+    metodo pagamento_metodo NOT NULL,
+    external_id VARCHAR(255), -- ID do Stripe/MercadoPago
+    
+    -- Status
+    status pagamento_status DEFAULT 'pendente',
+    
+    -- Metadados
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    processed_at TIMESTAMPTZ,
+    
+    -- Dados do processador
+    processor_response JSONB -- Resposta completa do Stripe/MP
+);
+
+-- Indexes
+CREATE INDEX idx_pagamentos_assinatura_id ON pagamentos(assinatura_id);
+CREATE INDEX idx_pagamentos_status ON pagamentos(status);
+CREATE INDEX idx_pagamentos_external_id ON pagamentos(external_id);
+
+-- =============================================
+-- 9. CONFIGURAÇÕES DO SISTEMA
+-- =============================================
+
+CREATE TABLE configuracoes (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    
+    -- Chave-valor para configurações
+    chave VARCHAR(100) UNIQUE NOT NULL,
+    valor JSONB NOT NULL,
+    descricao TEXT,
+    
+    -- Metadados
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Configurações iniciais
+INSERT INTO configuracoes (chave, valor, descricao) VALUES
+('telegram_bot_token', '""', 'Token do bot principal do Telegram'),
+('telegram_bot_username', '"bethub_bot"', 'Username do bot principal'),
+('comissao_plataforma', '0.10', 'Comissão da plataforma (10%)'),
+('periodo_graca_padrao', '3', 'Dias de período de graça padrão'),
+('max_tentativas_pagamento', '3', 'Máximo de tentativas de pagamento');
+
+-- =============================================
+-- 10. LOGS DE ATIVIDADE
+-- =============================================
+
+CREATE TYPE log_action AS ENUM (
+    'user_created', 'user_updated', 'user_deleted',
+    'canal_created', 'canal_updated', 'canal_deleted',
+    'assinatura_created', 'assinatura_cancelled',
+    'aposta_created', 'aposta_status_updated',
+    'payment_processed', 'telegram_sync'
+);
+
+CREATE TABLE logs_atividade (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    
+    -- Quem fez a ação
+    user_id UUID REFERENCES profiles(id),
+    
+    -- Dados da ação
+    action log_action NOT NULL,
+    table_name VARCHAR(50),
+    record_id UUID,
+    
+    -- Dados adicionais
+    details JSONB,
+    ip_address INET,
+    user_agent TEXT,
+    
+    -- Timestamp
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX idx_logs_user_id ON logs_atividade(user_id);
+CREATE INDEX idx_logs_action ON logs_atividade(action);
+CREATE INDEX idx_logs_created_at ON logs_atividade(created_at);
+
+-- =============================================
+-- 11. ROW LEVEL SECURITY (RLS)
+-- =============================================
+
+-- Habilitar RLS em todas as tabelas
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE canais ENABLE ROW LEVEL SECURITY;
+ALTER TABLE solicitacoes_canais ENABLE ROW LEVEL SECURITY;
+ALTER TABLE assinaturas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE apostas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lista_espera ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pagamentos ENABLE ROW LEVEL SECURITY;
+
+-- Políticas de Segurança
+
+-- Profiles: Usuários veem apenas próprio perfil, admins veem tudo
+CREATE POLICY "Users can view own profile" ON profiles
+    FOR SELECT USING (auth.uid() = id);
+
+CREATE POLICY "Admins can view all profiles" ON profiles
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM profiles 
+            WHERE id = auth.uid() 
+            AND role IN ('master', 'admin')
+        )
+    );
+
+-- Canais: Tipsters veem próprios canais, admins veem tudo
+CREATE POLICY "Tipsters can view own canais" ON canais
+    FOR SELECT USING (tipster_id = auth.uid());
+
+CREATE POLICY "Admins can view all canais" ON canais
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM profiles 
+            WHERE id = auth.uid() 
+            AND role IN ('master', 'admin')
+        )
+    );
+
+-- Apostas: Tipsters veem apostas dos próprios canais
+CREATE POLICY "Tipsters can view own canal apostas" ON apostas
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM canais 
+            WHERE id = canal_id 
+            AND tipster_id = auth.uid()
+        )
+    );
+
+-- Assinaturas: Clientes veem próprias assinaturas
+CREATE POLICY "Clientes can view own assinaturas" ON assinaturas
+    FOR SELECT USING (cliente_id = auth.uid());
+
+-- =============================================
+-- 12. TRIGGERS E FUNÇÕES
+-- =============================================
+
+-- Função para atualizar updated_at automaticamente
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Triggers para updated_at
+CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_canais_updated_at BEFORE UPDATE ON canais
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_solicitacoes_updated_at BEFORE UPDATE ON solicitacoes_canais
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_assinaturas_updated_at BEFORE UPDATE ON assinaturas
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Função para calcular lucro das apostas automaticamente
+CREATE OR REPLACE FUNCTION calculate_aposta_lucro()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.lucro_calculado = CASE
+        WHEN NEW.status = 'green' THEN (NEW.stake * NEW.odd) - NEW.stake
+        WHEN NEW.status = 'half_green' THEN ((NEW.stake * NEW.odd) - NEW.stake) / 2
+        WHEN NEW.status = 'red' THEN -NEW.stake
+        WHEN NEW.status = 'half_red' THEN -NEW.stake / 2
+        WHEN NEW.status IN ('void', 'drop', 'cancelada') THEN 0
+        ELSE 0 -- open
+    END;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Trigger para calcular lucro automaticamente
+CREATE TRIGGER calculate_apostas_lucro BEFORE INSERT OR UPDATE ON apostas
+    FOR EACH ROW EXECUTE FUNCTION calculate_aposta_lucro();
+
+-- =============================================
+-- 13. VIEWS ÚTEIS
+-- =============================================
+
+-- View: Estatísticas dos canais
+CREATE VIEW canal_stats AS
+SELECT 
+    c.id,
+    c.nome,
+    c.tipster_id,
+    COUNT(a.cliente_id) as total_assinantes,
+    COUNT(a.cliente_id) FILTER (WHERE a.status = 'ativa') as assinantes_ativos,
+    SUM(a.preco_pago) FILTER (WHERE a.status = 'ativa') as receita_mensal,
+    COUNT(ap.id) as total_apostas,
+    COUNT(ap.id) FILTER (WHERE ap.status NOT IN ('open', 'drop', 'cancelada')) as apostas_resolvidas,
+    COALESCE(SUM(ap.lucro_calculado) FILTER (WHERE ap.status NOT IN ('drop', 'cancelada')), 0) as lucro_total,
+    COALESCE(SUM(ap.stake) FILTER (WHERE ap.status NOT IN ('drop', 'cancelada')), 0) as stake_total,
+    CASE 
+        WHEN SUM(ap.stake) FILTER (WHERE ap.status NOT IN ('drop', 'cancelada')) > 0 
+        THEN (SUM(ap.lucro_calculado) FILTER (WHERE ap.status NOT IN ('drop', 'cancelada')) / SUM(ap.stake) FILTER (WHERE ap.status NOT IN ('drop', 'cancelada'))) * 100
+        ELSE 0 
+    END as roi_percentage
+FROM canais c
+LEFT JOIN assinaturas a ON c.id = a.canal_id
+LEFT JOIN apostas ap ON c.id = ap.canal_id
+GROUP BY c.id, c.nome, c.tipster_id;
+
+-- View: Dashboard do tipster
+CREATE VIEW tipster_dashboard AS
+SELECT 
+    p.id as tipster_id,
+    p.nome_completo,
+    COUNT(c.id) as total_canais,
+    COUNT(c.id) FILTER (WHERE c.status = 'ativo') as canais_ativos,
+    COALESCE(SUM(cs.total_assinantes), 0) as total_assinantes,
+    COALESCE(SUM(cs.receita_mensal), 0) as receita_total_mensal,
+    COALESCE(AVG(cs.roi_percentage), 0) as roi_medio
+FROM profiles p
+LEFT JOIN canais c ON p.id = c.tipster_id
+LEFT JOIN canal_stats cs ON c.id = cs.id
+WHERE p.role = 'tipster'
+GROUP BY p.id, p.nome_completo;
+
+-- =============================================
+-- 14. ÍNDICES DE PERFORMANCE
+-- =============================================
+
+-- Índices compostos para queries frequentes
+CREATE INDEX idx_assinaturas_status_vencimento ON assinaturas(status, data_vencimento);
+CREATE INDEX idx_apostas_canal_status ON apostas(canal_id, status);
+CREATE INDEX idx_apostas_canal_data ON apostas(canal_id, data_evento);
+
+-- Índices para busca de texto
+CREATE INDEX idx_canais_nome_search ON canais USING gin(to_tsvector('portuguese', nome));
+CREATE INDEX idx_profiles_nome_search ON profiles USING gin(to_tsvector('portuguese', nome_completo));

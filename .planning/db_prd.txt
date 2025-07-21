@@ -1,0 +1,1132 @@
+# BetLink - Database Product Requirements Document
+
+## 1. 📋 Visão Geral
+
+### 1.1 Objetivo
+Definir a arquitetura completa do banco de dados para o BetLink, uma plataforma de intermediação entre tipsters e clientes, com foco em transparência total, integração com Telegram e automação de processos.
+
+### 1.2 Stack Tecnológico
+- **Database**: PostgreSQL via Supabase
+- **Authentication**: Supabase Auth
+- **Security**: Row Level Security (RLS)
+- **Real-time**: Supabase Realtime
+- **Integration**: Telegram Bot API
+
+### 1.3 Princípios Fundamentais
+- **Transparência Total**: Apostas imutáveis via Telegram
+- **Automação Máxima**: 80% dos dados calculados automaticamente
+- **Segurança por Design**: RLS em todas as tabelas
+- **Performance**: Views otimizadas e índices estratégicos
+- **Integridade**: Relacionamentos bem definidos
+
+---
+
+## 2. 🏗️ Arquitetura de Dados
+
+### 2.1 Diagrama de Relacionamentos
+
+```mermaid
+erDiagram
+    auth_users ||--|| profiles : "1:1"
+    profiles ||--o{ canais : "tipster_id"
+    profiles ||--o{ assinaturas : "cliente_id"
+    profiles ||--o{ solicitacoes_canais : "tipster_id"
+    profiles ||--o{ lista_espera : "cliente_id"
+    
+    canais ||--o{ assinaturas : "canal_id"
+    canais ||--o{ apostas : "canal_id"
+    canais ||--o{ lista_espera : "canal_id"
+    canais ||--|| solicitacoes_canais : "canal_criado_id"
+    
+    assinaturas ||--o{ pagamentos : "assinatura_id"
+    
+    auth_users {
+        uuid id PK
+        string email
+        string encrypted_password
+        timestamp created_at
+    }
+    
+    profiles {
+        uuid id PK,FK
+        string nome_completo
+        string telegram_username UK
+        bigint telegram_id UK
+        enum role
+        enum status
+    }
+    
+    canais {
+        uuid id PK
+        uuid tipster_id FK
+        string nome
+        decimal preco_mensal
+        string telegram_username UK
+        enum status
+    }
+    
+    apostas {
+        uuid id PK
+        uuid canal_id FK
+        string descricao
+        decimal odd
+        decimal stake
+        enum status
+        decimal lucro_calculado
+    }
+```
+
+### 2.2 Categorização de Tabelas
+
+#### **Core Tables (Críticas)**
+- `profiles` - Usuários do sistema
+- `canais` - Canais de tips
+- `assinaturas` - Relacionamento cliente-canal
+- `apostas` - Apostas dos tipsters
+
+#### **Workflow Tables (Importantes)**
+- `solicitacoes_canais` - Fluxo de aprovação
+- `lista_espera` - Fila para canais lotados
+- `pagamentos` - Transações financeiras
+
+#### **System Tables (Suporte)**
+- `configuracoes` - Settings do sistema
+- `logs_atividade` - Auditoria
+
+---
+
+## 3. 📊 Schema Detalhado
+
+### 3.1 Tipos Enum
+
+```sql
+-- Roles de usuário
+CREATE TYPE user_role AS ENUM ('master', 'admin', 'tipster', 'cliente');
+
+-- Status de usuário
+CREATE TYPE user_status AS ENUM ('ativo', 'pausado', 'bloqueado', 'pendente');
+
+-- Status de canal
+CREATE TYPE canal_status AS ENUM ('ativo', 'pausado', 'configurando');
+
+-- Sincronização Telegram
+CREATE TYPE telegram_sync_status AS ENUM ('sincronizado', 'criando', 'erro', 'nao_configurado');
+
+-- Status de solicitação
+CREATE TYPE solicitacao_status AS ENUM ('pendente', 'aprovado', 'rejeitado', 'alteracoes_solicitadas');
+
+-- Status de assinatura
+CREATE TYPE assinatura_status AS ENUM ('ativa', 'vencida', 'cancelada', 'periodo_graca');
+
+-- Status de aposta
+CREATE TYPE aposta_status AS ENUM ('open', 'green', 'half_green', 'red', 'half_red', 'void', 'drop', 'cancelada');
+
+-- Métodos de pagamento
+CREATE TYPE pagamento_metodo AS ENUM ('stripe', 'mercado_pago', 'pix');
+```
+
+### 3.2 Tabelas Principais
+
+#### **profiles** (Extensão do Supabase Auth)
+```sql
+CREATE TABLE profiles (
+    id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+    
+    -- Dados Básicos
+    nome_completo TEXT NOT NULL,
+    avatar_url TEXT,
+    telefone VARCHAR(15), -- (11) 99999-9999
+    
+    -- Telegram (obrigatório para tipsters e clientes)
+    telegram_username VARCHAR(32) UNIQUE, -- sem @
+    telegram_id BIGINT UNIQUE, -- ID numérico
+    
+    -- Sistema
+    role user_role NOT NULL DEFAULT 'cliente',
+    status user_status NOT NULL DEFAULT 'ativo',
+    
+    -- Metadados
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    last_login_at TIMESTAMPTZ,
+    
+    -- Constraint: Telegram obrigatório para tipster/cliente
+    CONSTRAINT telegram_required_for_tipster_cliente 
+        CHECK (
+            (role IN ('tipster', 'cliente') AND telegram_username IS NOT NULL) OR 
+            (role IN ('master', 'admin'))
+        )
+);
+```
+
+#### **canais** (Produtos da plataforma)
+```sql
+CREATE TABLE canais (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    
+    -- Relacionamentos
+    tipster_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    created_by UUID REFERENCES profiles(id) NOT NULL, -- Admin que criou
+    
+    -- Dados Básicos
+    nome VARCHAR(100) NOT NULL,
+    descricao TEXT,
+    preco_mensal DECIMAL(10,2) NOT NULL CHECK (preco_mensal >= 10.00),
+    max_assinantes INTEGER NOT NULL CHECK (max_assinantes >= 10),
+    
+    -- Telegram
+    telegram_username VARCHAR(32) UNIQUE, -- Username do canal
+    telegram_id BIGINT UNIQUE, -- ID do canal
+    telegram_link TEXT, -- t.me/username
+    telegram_sync_status telegram_sync_status DEFAULT 'nao_configurado',
+    
+    -- Configurações
+    mercados_principais TEXT[], -- ['futebol', 'basquete']
+    casas_recomendadas TEXT[], -- ['bet365', 'sportingbet']
+    periodo_graca_dias INTEGER DEFAULT 3,
+    
+    -- Status
+    status canal_status DEFAULT 'configurando',
+    
+    -- Metadados
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### **apostas** (Transparência Total - Apenas Telegram)
+```sql
+CREATE TABLE apostas (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    
+    -- Relacionamento
+    canal_id UUID REFERENCES canais(id) ON DELETE CASCADE NOT NULL,
+    
+    -- Dados Imutáveis (vêm do Telegram)
+    data_tip TIMESTAMPTZ NOT NULL, -- Quando foi enviada
+    data_evento TIMESTAMPTZ NOT NULL, -- Quando é o evento
+    descricao TEXT NOT NULL,
+    bookie VARCHAR(50),
+    odd DECIMAL(8,4) NOT NULL CHECK (odd > 1.0),
+    stake DECIMAL(6,2) NOT NULL CHECK (stake > 0),
+    link_adicional TEXT,
+    
+    -- Status (Único campo editável)
+    status aposta_status DEFAULT 'open',
+    
+    -- Telegram
+    telegram_message_id BIGINT, -- ID da mensagem
+    telegram_bot_response TEXT, -- Resposta do bot
+    
+    -- Cálculos Automáticos
+    lucro_calculado DECIMAL(10,4) DEFAULT 0,
+    
+    -- Metadados (Imutáveis)
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### **assinaturas** (Relacionamento Cliente-Canal)
+```sql
+CREATE TABLE assinaturas (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    
+    -- Relacionamentos
+    cliente_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    canal_id UUID REFERENCES canais(id) ON DELETE CASCADE NOT NULL,
+    
+    -- Dados da Assinatura
+    preco_pago DECIMAL(10,2) NOT NULL,
+    desconto_aplicado DECIMAL(5,2) DEFAULT 0,
+    codigo_promocional VARCHAR(20),
+    origem origem_assinatura DEFAULT 'organica',
+    
+    -- Datas
+    data_inicio DATE NOT NULL DEFAULT CURRENT_DATE,
+    data_vencimento DATE NOT NULL,
+    data_cancelamento TIMESTAMPTZ,
+    
+    -- Status
+    status assinatura_status DEFAULT 'ativa',
+    
+    -- Telegram Integration
+    adicionado_telegram_at TIMESTAMPTZ,
+    removido_telegram_at TIMESTAMPTZ,
+    
+    -- Metadados
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Constraint: Uma assinatura por cliente por canal
+    UNIQUE(cliente_id, canal_id)
+);
+```
+
+#### **solicitacoes_canais** (Workflow de Aprovação)
+```sql
+CREATE TABLE solicitacoes_canais (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    
+    -- Relacionamentos
+    tipster_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    admin_id UUID REFERENCES profiles(id), -- Quem analisou
+    
+    -- Dados Solicitados
+    nome VARCHAR(100) NOT NULL,
+    telegram_username_desejado VARCHAR(32) NOT NULL,
+    descricao TEXT NOT NULL,
+    preco_mensal DECIMAL(10,2) NOT NULL,
+    max_assinantes INTEGER NOT NULL,
+    mercados_principais TEXT[] NOT NULL,
+    casas_recomendadas TEXT[],
+    justificativa TEXT NOT NULL,
+    
+    -- Processo
+    status solicitacao_status DEFAULT 'pendente',
+    observacoes_admin TEXT,
+    canal_criado_id UUID REFERENCES canais(id), -- Se aprovado
+    
+    -- Metadados
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    analisado_at TIMESTAMPTZ
+);
+```
+
+### 3.3 Tabelas de Suporte
+
+#### **lista_espera** (Fila para Canais Lotados)
+```sql
+CREATE TABLE lista_espera (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    
+    -- Relacionamentos
+    cliente_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    canal_id UUID REFERENCES canais(id) ON DELETE CASCADE NOT NULL,
+    
+    -- Posição e Controle
+    posicao INTEGER NOT NULL,
+    convidado_at TIMESTAMPTZ,
+    convite_expira_at TIMESTAMPTZ, -- 24h para aceitar
+    resposta_at TIMESTAMPTZ,
+    aceito BOOLEAN,
+    
+    -- Metadados
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Constraint: Cliente único por canal
+    UNIQUE(cliente_id, canal_id)
+);
+```
+
+#### **pagamentos** (Histórico Financeiro)
+```sql
+CREATE TABLE pagamentos (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    
+    -- Relacionamentos
+    assinatura_id UUID REFERENCES assinaturas(id) ON DELETE CASCADE NOT NULL,
+    cliente_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    
+    -- Dados do Pagamento
+    valor DECIMAL(10,2) NOT NULL,
+    metodo pagamento_metodo NOT NULL,
+    external_id VARCHAR(255), -- ID do Stripe/MercadoPago
+    status pagamento_status DEFAULT 'pendente',
+    
+    -- Metadados
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    processed_at TIMESTAMPTZ,
+    processor_response JSONB
+);
+```
+
+#### **configuracoes** (System Settings)
+```sql
+CREATE TABLE configuracoes (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    chave VARCHAR(100) UNIQUE NOT NULL,
+    valor JSONB NOT NULL,
+    descricao TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Configurações Iniciais
+INSERT INTO configuracoes (chave, valor, descricao) VALUES
+('telegram_bot_token', '""', 'Token do bot principal'),
+('comissao_plataforma', '0.10', 'Comissão da plataforma (10%)'),
+('periodo_graca_padrao', '3', 'Período de graça padrão');
+```
+
+#### **logs_atividade** (Auditoria)
+```sql
+CREATE TABLE logs_atividade (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES profiles(id),
+    action log_action NOT NULL,
+    table_name VARCHAR(50),
+    record_id UUID,
+    details JSONB,
+    ip_address INET,
+    user_agent TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+---
+
+## 4. 🔧 Automação e Triggers
+
+### 4.1 Triggers Automáticos
+
+#### **Updated At Timestamp**
+```sql
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Aplicar em todas as tabelas relevantes
+CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+```
+
+#### **Cálculo Automático de Lucro**
+```sql
+CREATE OR REPLACE FUNCTION calculate_aposta_lucro()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.lucro_calculado = CASE
+        WHEN NEW.status = 'green' THEN (NEW.stake * NEW.odd) - NEW.stake
+        WHEN NEW.status = 'half_green' THEN ((NEW.stake * NEW.odd) - NEW.stake) / 2
+        WHEN NEW.status = 'red' THEN -NEW.stake
+        WHEN NEW.status = 'half_red' THEN -NEW.stake / 2
+        WHEN NEW.status IN ('void', 'drop', 'cancelada') THEN 0
+        ELSE 0 -- open
+    END;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER calculate_apostas_lucro BEFORE INSERT OR UPDATE ON apostas
+    FOR EACH ROW EXECUTE FUNCTION calculate_aposta_lucro();
+```
+
+### 4.2 Views Calculadas
+
+#### **canal_stats** (Métricas em Tempo Real)
+```sql
+CREATE VIEW canal_stats AS
+SELECT 
+    c.id,
+    c.nome,
+    c.tipster_id,
+    
+    -- Assinantes
+    COUNT(a.cliente_id) as total_assinantes,
+    COUNT(a.cliente_id) FILTER (WHERE a.status = 'ativa') as assinantes_ativos,
+    c.max_assinantes - COUNT(a.cliente_id) FILTER (WHERE a.status = 'ativa') as vagas_disponiveis,
+    
+    -- Receita
+    SUM(a.preco_pago) FILTER (WHERE a.status = 'ativa') as receita_mensal,
+    
+    -- Apostas
+    COUNT(ap.id) as total_apostas,
+    COUNT(ap.id) FILTER (WHERE ap.status NOT IN ('open', 'drop', 'cancelada')) as apostas_resolvidas,
+    
+    -- Performance
+    COALESCE(SUM(ap.lucro_calculado) FILTER (WHERE ap.status NOT IN ('drop', 'cancelada')), 0) as lucro_total,
+    COALESCE(SUM(ap.stake) FILTER (WHERE ap.status NOT IN ('drop', 'cancelada')), 0) as stake_total,
+    
+    -- ROI
+    CASE 
+        WHEN SUM(ap.stake) FILTER (WHERE ap.status NOT IN ('drop', 'cancelada')) > 0 
+        THEN (SUM(ap.lucro_calculado) FILTER (WHERE ap.status NOT IN ('drop', 'cancelada')) / 
+              SUM(ap.stake) FILTER (WHERE ap.status NOT IN ('drop', 'cancelada'))) * 100
+        ELSE 0 
+    END as roi_percentage,
+    
+    -- Taxa de Acerto
+    CASE 
+        WHEN COUNT(ap.id) FILTER (WHERE ap.status IN ('green', 'red', 'half_green', 'half_red')) > 0
+        THEN (COUNT(ap.id) FILTER (WHERE ap.status IN ('green', 'half_green')) * 100.0) / 
+             COUNT(ap.id) FILTER (WHERE ap.status IN ('green', 'red', 'half_green', 'half_red'))
+        ELSE 0
+    END as taxa_acerto
+    
+FROM canais c
+LEFT JOIN assinaturas a ON c.id = a.canal_id
+LEFT JOIN apostas ap ON c.id = ap.canal_id
+GROUP BY c.id, c.nome, c.tipster_id, c.max_assinantes;
+```
+
+#### **tipster_dashboard** (Dashboard Consolidado)
+```sql
+CREATE VIEW tipster_dashboard AS
+SELECT 
+    p.id as tipster_id,
+    p.nome_completo,
+    
+    -- Canais
+    COUNT(c.id) as total_canais,
+    COUNT(c.id) FILTER (WHERE c.status = 'ativo') as canais_ativos,
+    
+    -- Performance Consolidada
+    COALESCE(SUM(cs.total_assinantes), 0) as total_assinantes,
+    COALESCE(SUM(cs.receita_mensal), 0) as receita_total_mensal,
+    COALESCE(AVG(cs.roi_percentage), 0) as roi_medio,
+    COALESCE(SUM(cs.total_apostas), 0) as total_apostas_geral
+    
+FROM profiles p
+LEFT JOIN canais c ON p.id = c.tipster_id
+LEFT JOIN canal_stats cs ON c.id = cs.id
+WHERE p.role = 'tipster'
+GROUP BY p.id, p.nome_completo;
+```
+
+---
+
+## 5. 🔒 Segurança (Row Level Security)
+
+### 5.1 Políticas RLS
+
+#### **profiles** (Usuários)
+```sql
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+-- Usuários veem próprio perfil
+CREATE POLICY "Users can view own profile" ON profiles
+    FOR SELECT USING (auth.uid() = id);
+
+-- Admins veem todos os perfis
+CREATE POLICY "Admins can view all profiles" ON profiles
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM profiles 
+            WHERE id = auth.uid() 
+            AND role IN ('master', 'admin')
+        )
+    );
+```
+
+#### **canais** (Isolamento por Tipster)
+```sql
+ALTER TABLE canais ENABLE ROW LEVEL SECURITY;
+
+-- Tipsters veem próprios canais
+CREATE POLICY "Tipsters can view own canais" ON canais
+    FOR SELECT USING (tipster_id = auth.uid());
+
+-- Admins veem todos os canais
+CREATE POLICY "Admins can view all canais" ON canais
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM profiles 
+            WHERE id = auth.uid() 
+            AND role IN ('master', 'admin')
+        )
+    );
+
+-- Clientes veem apenas canais que assinam ou públicos
+CREATE POLICY "Clientes can view subscribed canais" ON canais
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM assinaturas 
+            WHERE canal_id = id 
+            AND cliente_id = auth.uid()
+            AND status = 'ativa'
+        )
+        OR status = 'ativo' -- Canais públicos para descoberta
+    );
+```
+
+#### **apostas** (Transparência Total)
+```sql
+ALTER TABLE apostas ENABLE ROW LEVEL SECURITY;
+
+-- Tipsters veem apostas dos próprios canais
+CREATE POLICY "Tipsters can view own canal apostas" ON apostas
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM canais 
+            WHERE id = canal_id 
+            AND tipster_id = auth.uid()
+        )
+    );
+
+-- Clientes veem apostas dos canais assinados
+CREATE POLICY "Clientes can view subscribed canal apostas" ON apostas
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM assinaturas a
+            JOIN canais c ON a.canal_id = c.id
+            WHERE c.id = canal_id 
+            AND a.cliente_id = auth.uid()
+            AND a.status = 'ativa'
+        )
+    );
+```
+
+### 5.2 Permissões de Modificação
+
+#### **Insert/Update/Delete por Role**
+```sql
+-- Apenas admins podem criar canais
+CREATE POLICY "Only admins can create canais" ON canais
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM profiles 
+            WHERE id = auth.uid() 
+            AND role IN ('master', 'admin')
+        )
+    );
+
+-- Tipsters podem atualizar status das próprias apostas
+CREATE POLICY "Tipsters can update own apostas status" ON apostas
+    FOR UPDATE USING (
+        EXISTS (
+            SELECT 1 FROM canais 
+            WHERE id = canal_id 
+            AND tipster_id = auth.uid()
+        )
+    )
+    WITH CHECK (
+        -- Apenas status pode ser alterado
+        OLD.data_tip = NEW.data_tip AND
+        OLD.data_evento = NEW.data_evento AND
+        OLD.descricao = NEW.descricao AND
+        OLD.odd = NEW.odd AND
+        OLD.stake = NEW.stake
+    );
+```
+
+---
+
+## 6. 📈 Performance e Índices
+
+### 6.1 Índices Estratégicos
+
+#### **Índices Básicos**
+```sql
+-- Profiles
+CREATE INDEX idx_profiles_role ON profiles(role);
+CREATE INDEX idx_profiles_telegram_username ON profiles(telegram_username);
+
+-- Canais
+CREATE INDEX idx_canais_tipster_id ON canais(tipster_id);
+CREATE INDEX idx_canais_status ON canais(status);
+CREATE INDEX idx_canais_telegram_sync ON canais(telegram_sync_status);
+
+-- Assinaturas
+CREATE INDEX idx_assinaturas_cliente_id ON assinaturas(cliente_id);
+CREATE INDEX idx_assinaturas_canal_id ON assinaturas(canal_id);
+CREATE INDEX idx_assinaturas_status_vencimento ON assinaturas(status, data_vencimento);
+
+-- Apostas
+CREATE INDEX idx_apostas_canal_id ON apostas(canal_id);
+CREATE INDEX idx_apostas_canal_status ON apostas(canal_id, status);
+CREATE INDEX idx_apostas_data_evento ON apostas(data_evento);
+```
+
+#### **Índices de Performance**
+```sql
+-- Para queries de dashboard
+CREATE INDEX idx_assinaturas_ativas_canal ON assinaturas(canal_id) 
+    WHERE status = 'ativa';
+
+-- Para cálculos de ROI
+CREATE INDEX idx_apostas_resolvidas ON apostas(canal_id, status) 
+    WHERE status NOT IN ('open', 'drop', 'cancelada');
+
+-- Para busca de texto
+CREATE INDEX idx_canais_nome_search ON canais 
+    USING gin(to_tsvector('portuguese', nome));
+```
+
+### 6.2 Query Optimization
+
+#### **Materialized Views** (Para Dados Pesados)
+```sql
+-- Para dashboards admin com muito volume
+CREATE MATERIALIZED VIEW mv_platform_stats AS
+SELECT 
+    COUNT(*) FILTER (WHERE role = 'tipster') as total_tipsters,
+    COUNT(*) FILTER (WHERE role = 'cliente') as total_clientes,
+    (SELECT COUNT(*) FROM canais WHERE status = 'ativo') as canais_ativos,
+    (SELECT SUM(receita_mensal) FROM canal_stats) as receita_total
+FROM profiles;
+
+-- Refresh automático via cron job
+```
+
+---
+
+## 7. 🔄 Jobs e Automação
+
+### 7.1 Jobs Periódicos Necessários
+
+#### **Diário (Critical)**
+```sql
+-- 1. Atualizar status de assinaturas vencidas
+-- 2. Processar lista de espera (convites automáticos)
+-- 3. Sincronizar com Telegram (adicionar/remover membros)
+-- 4. Limpar tokens expirados
+```
+
+#### **Semanal (Important)**
+```sql
+-- 1. Refresh materialized views
+-- 2. Análise de performance de canais
+-- 3. Relatórios automáticos para admins
+-- 4. Backup incremental
+```
+
+#### **Mensal (Maintenance)**
+```sql
+-- 1. Limpeza de logs antigos (>90 dias)
+-- 2. Análise de índices e performance
+-- 3. Backup completo
+-- 4. Auditoria de dados inconsistentes
+```
+
+### 7.2 Webhook Handlers
+
+#### **Telegram Webhooks**
+- **Nova aposta**: Processar template → Insert em `apostas`
+- **Membro adicionado**: Log em `logs_atividade`
+- **Membro removido**: Verificar se foi manual ou automático
+
+#### **Payment Webhooks**
+- **Stripe**: Atualizar status em `pagamentos`
+- **MercadoPago**: Processar confirmação de PIX
+- **Falha**: Iniciar período de graça
+
+---
+
+## 8. 🚨 Pontos Críticos de Sincronização
+
+### 8.1 Métricas Calculadas
+
+#### **PROBLEMA**: ROI aparece em múltiplas telas
+**SOLUÇÃO**:
+```sql
+-- View canal_stats centralizada
+-- Cache de 5 minutos no frontend
+-- Invalidação automática via triggers
+```
+
+#### **TELAS AFETADAS**:
+- `/canais` (grid de canais)
+- `/canal/[id]` (página individual)
+- `/[canal]/apostas` (cards resumo)
+- `/admin/canais` (tabela global)
+
+### 8.2 Status de Assinaturas
+
+#### **PROBLEMA**: Status deve estar sincronizado
+**SOLUÇÃO**:
+```sql
+-- Job diário para atualizar vencimentos
+-- Trigger para mudanças em data_vencimento
+-- Webhook para processar pagamentos
+-- Sincronização automática com Telegram
+```
+
+#### **ESTADOS**:
+- `ativa` → Acesso liberado no Telegram
+- `vencida` → 3 dias período de graça
+- `periodo_graca` → Ainda com acesso
+- `cancelada` → Removido do Telegram
+
+### 8.3 Telegram Integration
+
+#### **PROBLEMA**: Status de sincronização crítico
+**SOLUÇÃO**:
+```sql
+-- Campo telegram_sync_status em canais
+-- Webhook para atualizações em tempo real
+-- Job de verificação de saúde (5 min)
+-- Retry automático para falhas temporárias
+```
+
+#### **MONITORING**:
+- Dashboard admin mostra status de todos os canais
+- Alertas automáticos para problemas
+- Logs detalhados de todas as operações
+
+---
+
+## 9. 📊 Mapeamento Frontend → Database
+
+### 9.1 Área Pública
+
+#### **Landing Page** (`/`)
+```sql
+-- Estatísticas gerais
+SELECT COUNT(*) FROM canais WHERE status = 'ativo';
+SELECT COUNT(*) FROM profiles WHERE role = 'cliente';
+SELECT AVG(roi_percentage) FROM canal_stats;
+
+-- Canais em destaque (top 6)
+SELECT * FROM canal_stats ORDER BY roi_percentage DESC LIMIT 6;
+```
+
+#### **Página de Canais** (`/canais`)
+```sql
+-- Lista com filtros
+SELECT c.*, p.nome_completo as tipster_nome, cs.*
+FROM canais c
+JOIN profiles p ON c.tipster_id = p.id
+JOIN canal_stats cs ON c.id = cs.id
+WHERE c.status = 'ativo'
+  AND cs.roi_percentage >= :min_roi
+  AND c.preco_mensal BETWEEN :min_preco AND :max_preco
+ORDER BY :sort_field;
+```
+
+### 9.2 Área do Cliente
+
+#### **Dashboard** (`/dashboard`)
+```sql
+-- Cards resumo
+SELECT 
+    COUNT(*) as total_assinaturas,
+    COUNT(*) FILTER (WHERE status = 'ativa') as ativas,
+    SUM(preco_pago) FILTER (WHERE status = 'ativa') as custo_mensal
+FROM assinaturas 
+WHERE cliente_id = auth.uid();
+
+-- Tabela de canais
+SELECT a.*, c.nome as canal_nome, c.telegram_link
+FROM assinaturas a
+JOIN canais c ON a.canal_id = c.id
+WHERE a.cliente_id = auth.uid();
+```
+
+### 9.3 Área do Tipster
+
+#### **Meus Canais** (`/meus-canais`)
+```sql
+-- Grid de canais
+SELECT c.*, cs.*
+FROM canais c
+JOIN canal_stats cs ON c.id = cs.id
+WHERE c.tipster_id = auth.uid();
+
+-- Solicitações pendentes
+SELECT * FROM solicitacoes_canais 
+WHERE tipster_id = auth.uid() 
+  AND status = 'pendente';
+```
+
+#### **Apostas do Canal** (`/[canal]/apostas`)
+```sql
+-- Cards resumo (período filtrado)
+SELECT 
+    SUM(lucro_calculado) as lucro_total,
+    SUM(stake) as stake_total,
+    (SUM(lucro_calculado) / SUM(stake)) * 100 as roi
+FROM apostas 
+WHERE canal_id = :canal_id 
+  AND data_tip >= :data_inicio
+  AND status NOT IN ('drop', 'cancelada');
+
+-- Tabela de apostas
+SELECT * FROM apostas 
+WHERE canal_id = :canal_id 
+ORDER BY data_tip DESC 
+LIMIT :limit OFFSET :offset;
+```
+
+### 9.4 Área Admin
+
+#### **Dashboard Admin** (`/admin/dashboard`)
+```sql
+-- Métricas principais
+SELECT 
+    (SELECT COUNT(*) FROM profiles WHERE role = 'tipster') as total_tipsters,
+    (SELECT COUNT(*) FROM profiles WHERE role = 'cliente') as total_clientes,
+    (SELECT COUNT(*) FROM canais WHERE status = 'ativo') as canais_ativos,
+    (SELECT SUM(receita_mensal) FROM canal_stats) as receita_total;
+
+-- Atividades recentes
+SELECT * FROM logs_atividade 
+ORDER BY created_at DESC 
+LIMIT 20;
+```
+
+#### **Gestão de Canais** (`/admin/canais`)
+```sql
+-- Tabela global
+SELECT c.*, p.nome_completo as tipster_nome, cs.*
+FROM canais c
+JOIN profiles p ON c.tipster_id = p.id
+LEFT JOIN canal_stats cs ON c.id = cs.id
+ORDER BY c.created_at DESC;
+```
+
+---
+
+## 10. 🎯 Dados Input vs Calculados
+
+### 10.1 Dados Inputados (Manual)
+
+#### **Por Admins**
+```sql
+-- Criação de tipsters
+INSERT INTO profiles (nome_completo, email, telefone, telegram_username, role);
+
+-- Criação de canais
+INSERT INTO canais (nome, descricao, preco_mensal, max_assinantes, tipster_id);
+
+-- Aprovação de solicitações
+UPDATE solicitacoes_canais SET status = 'aprovado', admin_id = auth.uid();
+```
+
+#### **Por Tipsters**
+```sql
+-- Solicitação de canais
+INSERT INTO solicitacoes_canais (nome, descricao, preco_mensal, justificativa);
+
+-- Alteração de status das apostas (ÚNICA edição permitida)
+UPDATE apostas SET status = 'green' WHERE id = :aposta_id;
+```
+
+#### **Por Clientes**
+```sql
+-- Cadastro
+INSERT INTO profiles (nome_completo, email, telefone, telegram_username);
+
+-- Assinatura
+INSERT INTO assinaturas (cliente_id, canal_id, preco_pago);
+```
+
+#### **Por Sistema Externo (Telegram Bot)**
+```sql
+-- Apostas via template
+INSERT INTO apostas (canal_id, data_evento, descricao, odd, stake, telegram_message_id);
+```
+
+### 10.2 Dados Calculados (Automático)
+
+#### **Triggers em Tempo Real**
+```sql
+-- Lucro das apostas (trigger)
+NEW.lucro_calculado = CASE WHEN NEW.status = 'green' THEN (NEW.stake * NEW.odd) - NEW.stake
+
+-- Timestamps automáticos
+NEW.updated_at = NOW();
+
+-- Status de assinaturas (trigger diário)
+UPDATE assinaturas SET status = 'vencida' WHERE data_vencimento < CURRENT_DATE;
+```
+
+#### **Views Dinâmicas**
+```sql
+-- ROI, receita, estatísticas (canal_stats)
+-- Dashboard consolidado (tipster_dashboard)
+-- Métricas da plataforma (platform_stats)
+```
+
+#### **Jobs Periódicos**
+```sql
+-- Status de assinaturas vencidas (diário)
+-- Sincronização com Telegram (5 min)
+-- Processamento de lista de espera (diário)
+-- Limpeza de logs antigos (mensal)
+```
+
+---
+
+## 11. 🔍 Validações e Constraints
+
+### 11.1 Validações de Negócio
+
+#### **Telegram Username**
+```sql
+-- Formato válido (5-32 chars, sem @)
+CHECK (telegram_username ~ '^[a-zA-Z0-9_]{5,32}$')
+
+-- Obrigatório para tipster/cliente
+CHECK ((role IN ('tipster', 'cliente') AND telegram_username IS NOT NULL) OR (role IN ('master', 'admin')))
+```
+
+#### **Preços e Valores**
+```sql
+-- Preço mínimo
+CHECK (preco_mensal >= 10.00)
+
+-- Stake válido
+CHECK (stake > 0)
+
+-- Odd válida
+CHECK (odd > 1.0)
+
+-- Limite de assinantes
+CHECK (max_assinantes >= 10)
+```
+
+#### **Datas e Períodos**
+```sql
+-- Data de vencimento futura
+CHECK (data_vencimento > data_inicio)
+
+-- Período de graça válido
+CHECK (periodo_graca_dias >= 0 AND periodo_graca_dias <= 30)
+```
+
+### 11.2 Integridade Referencial
+
+#### **Cascades Definidas**
+```sql
+-- Usuário deletado → Perfil deletado (CASCADE)
+-- Tipster deletado → Canais deletados (CASCADE)
+-- Canal deletado → Assinaturas canceladas (CASCADE)
+-- Assinatura deletada → Pagamentos mantidos (RESTRICT)
+```
+
+#### **Unique Constraints**
+```sql
+-- telegram_username único globalmente
+-- Cliente + Canal único (uma assinatura por par)
+-- Email único (via Supabase Auth)
+```
+
+---
+
+## 12. 🚀 Roadmap de Implementação
+
+### 12.1 Fase 1 - Core Tables (Semana 1)
+- ✅ Setup Supabase + PostgreSQL
+- ✅ Criar types enum
+- ✅ Implementar `profiles`, `canais`, `assinaturas`, `apostas`
+- ✅ Configurar RLS básico
+
+### 12.2 Fase 2 - Automation (Semana 2)
+- ✅ Triggers para cálculos automáticos
+- ✅ Views `canal_stats` e `tipster_dashboard`
+- ✅ Jobs para status de assinaturas
+- ✅ Índices de performance
+
+### 12.3 Fase 3 - Workflow (Semana 3)
+- ✅ `solicitacoes_canais` + aprovação
+- ✅ `lista_espera` + convites automáticos
+- ✅ `pagamentos` + webhooks
+- ✅ `logs_atividade` + auditoria
+
+### 12.4 Fase 4 - Integration (Semana 4)
+- ✅ Telegram webhooks
+- ✅ Sincronização automática
+- ✅ Monitoring e alertas
+- ✅ Backup e recovery
+
+### 12.5 Fase 5 - Optimization (Ongoing)
+- 📊 Materialized views para dashboards
+- 🚀 Query optimization
+- 📈 Performance monitoring
+- 🔧 Fine-tuning baseado em uso real
+
+---
+
+## 13. 🔧 Configuração e Deploy
+
+### 13.1 Environment Variables
+```env
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+
+# Telegram
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_WEBHOOK_SECRET=
+
+# Payments
+STRIPE_SECRET_KEY=
+MERCADOPAGO_ACCESS_TOKEN=
+```
+
+### 13.2 Migration Scripts
+```sql
+-- 001_initial_schema.sql
+-- 002_add_triggers.sql
+-- 003_create_views.sql
+-- 004_setup_rls.sql
+-- 005_add_indexes.sql
+```
+
+### 13.3 Seed Data
+```sql
+-- Configurações iniciais
+-- Usuário master padrão
+-- Tipos de mercados e casas
+-- Configurações do sistema
+```
+
+---
+
+## 14. 📋 Checklist de Validação
+
+### 14.1 Funcional
+- [ ] Todas as páginas carregam dados corretos
+- [ ] Cálculos automáticos funcionam
+- [ ] RLS impede acessos não autorizados
+- [ ] Webhooks processam corretamente
+- [ ] Jobs executam no horário
+
+### 14.2 Performance
+- [ ] Queries < 100ms para dashboards
+- [ ] Views calculam em < 500ms
+- [ ] Índices otimizados
+- [ ] Cache funciona corretamente
+
+### 14.3 Segurança
+- [ ] RLS ativo em todas as tabelas
+- [ ] Dados sensíveis não expostos
+- [ ] Logs de auditoria funcionam
+- [ ] Backups automáticos
+
+### 14.4 Integração
+- [ ] Telegram sync 100% funcional
+- [ ] Payments processam corretamente
+- [ ] Emails automáticos enviados
+- [ ] Webhooks resilientes
+
+---
+
+## 15. 📞 Suporte e Manutenção
+
+### 15.1 Monitoring
+- **Database performance**: Query times, index usage
+- **Data integrity**: Foreign keys, constraints
+- **Sync status**: Telegram integration health
+- **Business metrics**: Conversion rates, churn
+
+### 15.2 Alertas Automáticos
+- **Critical**: Database down, sync failures
+- **Warning**: Slow queries, high memory
+- **Info**: Daily summaries, backup status
+
+### 15.3 Documentation
+- **Schema docs**: Automaticamente gerados
+- **API docs**: Para webhooks e integrações
+- **Runbooks**: Procedimentos de emergência
+- **Change log**: Histórico de alterações
+
+---
+
+## 🎯 Conclusão
+
+Este PRD define uma arquitetura robusta, segura e performática para o BetLink, com foco em:
+
+- **Transparência total** nas apostas via Telegram
+- **Automação máxima** de cálculos e processos
+- **Segurança por design** com RLS granular
+- **Performance otimizada** com views e índices estratégicos
+- **Escalabilidade** para crescimento futuro
+
+A implementação seguirá as fases definidas, priorizando funcionalidade core e depois otimizações avançadas.

@@ -1,0 +1,294 @@
+# BetLink - Especificação Detalhada da Área do Cliente (ATUALIZADA)
+
+## 1. Acesso à Área do Cliente
+
+### 1.1 Formas de Acesso
+**Usuário Não Logado:**
+- **Header público**: Botão "Entrar" → Sistema de autenticação
+- **Tentativa de ação**: Assinar canal → Redirecionamento para login
+- **URL direta**: /dashboard → Redirecionamento para login
+
+**Usuário Logado:**
+- **Header público**: Avatar com dropdown → "Dashboard"
+- **URL direta**: /dashboard → Acesso direto
+- **Após login**: Redirecionamento automático para dashboard
+
+---
+
+## 2. Layout Global da Área do Cliente
+
+### 2.1 Estrutura Principal
+## 🎯 MVP - MUST HAVE
+
+#### Header (Área do Cliente)
+**Elementos fixos:**
+- **Logo BetLink** (esquerda) → Link para área pública
+- **Navegação principal** (centro):
+  - Dashboard (ativo)
+- **Área do usuário** (direita):
+  - **Avatar + Nome**
+  - **Dropdown**: Configurações, Área Pública, Sair
+
+#### Layout da Página
+**Estrutura única:**
+- **Desktop**: Layout clássico com header + conteúdo principal
+- **Mobile**: Header responsivo + conteúdo fullscreen
+- **Sem sidebar**: Página única focada no dashboard
+
+---
+
+## 3. Dashboard - Página Única (/dashboard)
+
+### 3.1 Estrutura da Página
+## 🎯 MVP - MUST HAVE
+
+#### Header da Página
+**Elementos:**
+- **Título**: "Meu Dashboard"
+- **Saudação**: "Olá, [Nome]!"
+- **CTA**: "Explorar **Canais**" → Volta para área pública
+
+#### Seção: Cards Resumo (Topo)
+**Layout**: Grid 2 colunas (desktop/tablet) / 1 coluna (mobile)
+
+**Card 1: Quantidade de Assinaturas**
+- **Valor**: X assinaturas
+- **Cor**: Azul
+- **Ícone**: Users/People
+- **Detalhe**: "X ativas • Y total"
+- **Breakdown**: Ativas, vencendo, vencidas
+
+**Card 2: Custo Total**
+- **Valor**: R$ XXX,XX
+- **Cor**: Verde (se dentro do orçamento) / Laranja (alto)
+- **Ícone**: Dollar/Money
+- **Detalhe**: "Mensal"
+- **Comparação**: vs mês anterior (↑↓ R$ XX,XX)
+
+---
+
+**Observação para Futuro:**
+Quando o sistema de planilhamento de apostas estiver implementado, estes cards serão substituídos por:
+- **Unidades Lucradas** (soma de todos os canais)
+- **ROI Geral** (performance consolidada)
+- **Unidades Apostadas** (volume total)
+- **Win Rate** (taxa de acerto geral)
+
+#### Seção: Tabela de Canais (Principal)
+
+**Header da Tabela:**
+- **Título**: "Meus **Canais**"
+- **Filtros** (barra superior):
+  - **Status**: Dropdown (Todos, Ativos, Vencendo, Vencidos)
+- **Busca**: Campo para filtrar por nome do canal
+
+**Colunas da Tabela:**
+| Coluna | Descrição | Ordenável | Tipo |
+|--------|-----------|-----------|------|
+| **Canal** | Avatar + Nome do canal | ✅ (A-Z) | Texto |
+| **Status** | Badge colorido (Ativo/Vencendo/Vencido) | ✅ | Status |
+| **Assinatura** | Data de início da assinatura | ✅ | Data |
+| **Próximo Vencimento** | Data da próxima cobrança | ✅ | Data |
+| **Preço** | Valor da assinatura mensal | ✅ | Valor |
+| **Ações** | Botão "Acessar Canal" | ❌ | Ação |
+
+**Comportamento da Tabela:**
+- **Clique na linha** → Redireciona para página do canal (/canal/[id])
+- **Clique no botão "Acessar Canal"** → Abre Telegram (link direto)
+- **Paginação** se mais de 10 canais
+- **Loading state** durante carregamento
+- **Empty state** se não há canais
+
+**Estados dos Badges:**
+- **Ativo**: Verde claro com texto "Ativo"
+- **Vencendo**: Amarelo com texto "Vence em X dias"
+- **Vencido**: Vermelho com texto "Vencido"
+- **Período de Graça**: Laranja com texto "Período de Graça"
+
+### 3.2 Ações Disponíveis
+## 🎯 MVP - MUST HAVE
+- **Explorar Canais** → Navegação para área pública
+- **Filtrar por status** → Atualização da tabela em tempo real
+- **Buscar canal** → Filtro de texto na tabela
+- **Ordenar colunas** → Sort ascendente/descendente
+- **Clique na linha** → Navegação para página do canal
+- **Acessar Canal** → Link direto para Telegram
+- **Paginar resultados** → Navegação entre páginas
+
+---
+
+## 4. Integração Telegram Atualizada
+
+### 4.1 Processo de Cadastro
+**Campos obrigatórios:**
+- **Nome completo**: Input de texto
+- **Email**: Input com validação de unicidade
+- **Telefone**: Input com máscara brasileira (11) 99999-9999
+- **@ do Telegram**: Username sem @ (ex: joaosilva)
+- **Senha**: Critérios de segurança obrigatórios
+- **Confirmar senha**: Match validation
+- **Termos de uso**: Aceite obrigatório
+
+**Validações específicas do Telegram:**
+- **Username**: Apenas letras, números e underscore
+- **Comprimento**: Entre 5 e 32 caracteres
+- **Unicidade**: Verificação se já está em uso no sistema
+- **Formato**: Sem @ inicial (cliente digita apenas "joaosilva")
+
+### 4.2 Gestão de Assinaturas
+**Acesso automático aos canais:**
+- **Assinatura ativa** → Cliente tem acesso ao canal Telegram
+- **Cancelamento** → Cliente é removido automaticamente
+- **Vencimento** → 3 dias de período de graça
+- **Período de graça** → Remoção automática após 3 dias
+
+**Link direto para Telegram:**
+- **Botão "Acessar Canal"** → Abre app Telegram
+- **URL format**: t.me/nomecanal
+- **Verificação**: Sistema verifica se cliente tem acesso ativo
+
+### 4.3 Estados de Acesso
+**Status da assinatura:**
+- **Ativo**: Pagamento em dia, acesso liberado ao Telegram
+- **Vencendo**: 3 dias ou menos para vencimento, acesso mantido
+- **Vencido**: Pagamento em atraso, acesso bloqueado no Telegram
+- **Período de Graça**: 3 dias após vencimento, acesso mantido
+
+---
+
+## 5. Estados e Comportamentos Especiais
+
+### 5.1 Estados de Dados
+## 🎯 MVP - MUST HAVE
+
+**Dashboard Vazio (Novo Cliente):**
+- **Cards** mostram valores zerados
+- **Tabela** vazia com mensagem motivacional
+- **CTA prominente**: "Assine seu primeiro **canal** de tips"
+- **Link** para área pública de canais
+
+**Dashboard com Dados:**
+- **Cards** calculados automaticamente
+- **Tabela** populada com canais ativos
+- **Filtros** habilitados
+- **Atualizações** em tempo real
+
+### 5.2 Estados de Loading
+**Carregamento inicial:**
+- **Skeleton screens** para cards
+- **Skeleton table** com linhas placeholder
+- **Não bloqueia** interação com filtros
+
+**Filtros/Ordenação:**
+- **Spinner** sutil na tabela
+- **Disabled state** nos filtros durante loading
+- **Preserva** seleção do usuário
+
+### 5.3 Estados de Erro
+**Erro de conexão:**
+- **Mensagem** de erro amigável
+- **Botão** "Tentar novamente"
+- **Dados em cache** se disponíveis
+
+**Dados inconsistentes:**
+- **Fallback** para valores padrão
+- **Log** para debugging
+- **Experiência** não quebrada
+
+### 5.4 Responsividade
+## 🎯 MVP - MUST HAVE
+
+**Desktop (> 1024px):**
+- **Cards**: 2 colunas
+- **Tabela**: Todas as colunas visíveis
+- **Filtros**: Barra horizontal
+
+**Tablet (768px - 1023px):**
+- **Cards**: 2 colunas (menores)
+- **Tabela**: Scroll horizontal se necessário
+- **Filtros**: Barra horizontal compacta
+
+**Mobile (< 768px):**
+- **Cards**: 1 coluna, stack vertical
+- **Tabela**: Card layout responsivo
+- **Filtros**: Drawer/modal
+- **Clique**: Toda a área do card redireciona
+
+---
+
+## 6. Cálculos e Lógica de Negócio
+
+### 6.1 Cálculo das Assinaturas
+## 🎯 MVP - MUST HAVE
+
+**Quantidade de Assinaturas:**
+- **Total**: Número total de canais já assinados (histórico)
+- **Ativas**: Assinaturas com status "Ativo" ou "Período de Graça"
+- **Breakdown**: Contadores por status (Ativas, Vencendo, Vencidas)
+
+**Custo Total:**
+- **Fórmula**: Soma dos preços de todas as assinaturas ativas
+- **Comparação**: Diferença vs mês anterior (novos canais - cancelamentos)
+- **Período**: Valor mensal recorrente atual
+
+### 6.2 Estados das Assinaturas
+**Status possíveis:**
+- **Ativo**: Pagamento em dia, acesso liberado no Telegram
+- **Vencendo**: 3 dias ou menos para vencimento, acesso mantido
+- **Vencido**: Pagamento em atraso, acesso bloqueado no Telegram
+- **Período de Graça**: 3 dias após vencimento, acesso mantido
+
+### 6.3 Lógica de Cores dos Cards
+**Quantidade de Assinaturas:**
+- **Azul**: Cor neutra, sempre consistente
+
+**Custo Total:**
+- **Verde**: Custo considerado normal
+- **Laranja**: Custo alto (critério a definir)
+- **Comparação**: Verde (↓ economia), Vermelho (↑ aumento)
+
+---
+
+## 7. Integrações Necessárias
+
+### 7.1 Sistema de Dados
+## 🎯 MVP - MUST HAVE
+- **API Backend** para buscar dados do cliente
+- **Cache inteligente** para performance
+- **Sincronização** com dados dos canais
+- **Atualizações** em tempo real via websockets (opcional)
+
+### 7.2 Telegram
+- **Links diretos** para canais baseados em assinatura ativa
+- **Verificação** de acesso antes de gerar link
+- **Fallback** se canal não disponível
+- **Bot integration** para controle de acesso automático
+
+### 7.3 Analytics
+- **Tracking** de interações na tabela
+- **Tempo** gasto no dashboard
+- **Filtros** mais utilizados
+- **Conversão** para novas assinaturas
+
+---
+
+## 8. Especificações Técnicas
+
+### 8.1 Performance
+## 🎯 MVP - MUST HAVE
+- **Carregamento inicial** < 2 segundos
+- **Filtros** com debounce de 300ms
+- **Paginação** de 10 itens por página
+- **Cache** de 5 minutos para dados estáticos
+
+### 8.2 SEO e Acessibilidade
+- **Meta tags** para área logada
+- **Navegação por teclado** completa
+- **Screen readers** compatíveis
+- **Contraste** adequado (WCAG 2.1 AA)
+
+### 8.3 Segurança
+- **Verificação** de sessão em todas as requisições
+- **Rate limiting** para APIs
+- **Sanitização** de dados de entrada
+- **Logs** de ações sensíveis

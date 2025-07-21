@@ -1,0 +1,87 @@
+# Projeto BetLink #
+
+## Objetivo: Criar um Aplicativo para Gestão de Tipsters ##
+
+# Usuários e Permissões # 
+
+- Master: Dono do App: Pode CRUD tudo
+- Admin: Pode CRUD tudo, menos Master e Outros Admin. Criado pelo Master
+- Tipster: Tem Acesso apenas à seção de tipsters. Criado por Master e Admin Apenas
+- Cliente: Tem Acesso somente à seção de clients. Criado por Sign-Up
+
+# O que é o App #
+
+- É um app de intermediação entre tipsters e clientes
+
+
+*** Area Pública ***
+
+- Landing Page: Apresentação dos Produtos
+ - Area para propaganda de casas de apostas
+ - Area para propaganda de tipsters
+
+- Página: Canais de Tipters
+ - Cards com principais informações sobre os tipsters
+  - Unidades de lucro, Qtde de Apostas, ROI, Casas, Mercado
+ - Ao clicar no carde abre o modal tipster
+ - Modal Tipster é Uma com mais detalhes sobre o tipster
+  - possibilidade de filtrar os resultados por diferentes intervalos de tempo e por bookie
+  - Texto com descrição mais extensa sobre a estratégia e mercados
+  - Gráfico dos resultados
+  - Botão para assinar o canal 
+   - Clientes logados: Podem assinar o canal
+    - Canais Grátis: Podem entrar automaticamente,sem pagamento
+    - Canais Pagos: Podem entrar automaticamente
+   - Clientes não logados: Direcionados para a área de login
+
+
+- Página: Blog
+ - Artigos compartilhando conhecimento sobre apostas
+
+- Página Futura: Planilhador de Apostas
+- Página Futura: Gestão de Contas
+
+
+*** Perspectiva do Tipster ***
+
+- Login e senha criado pelo admin
+- É um app que faz a gestão dos clientes assinantes
+- cliente contrata o serviço do tipster através do app
+- renovação automatica da assinatura
+- Cliente assinante ganha acesso automatic ao canal de telegram
+- cliente que cancela a assinatura sai automaticamente do canal
+- cliente que tem problema no pagamento ganha um prazo de 3 dias para renovar a assinatura
+- Quando todas as vagas do canal sao preenchidas, abre uma lista de espera
+- Quando abre uma vaga, os clientes são chamados por ordem de chegada e tem 24h para decidir se entram ou não
+- Tipster deve ter a possibilidade de fazer promoções (códigos promocionais)
+- Admin e Master podem inserir clientes VIP, via aprovação do tipster
+- Tipster tem um Sistema de planilhamento de apostasy que acompanha os resultados de forma automatizada
+
+*** Perspectiva do Cliente ***
+
+- Cliente faz o login pode acessar tanto área pública como privada
+- Cliente logado tem uma página de dashboard com todos os canais assinados
+- Dashboard filtra os canais assinados pelo cliente e destaca dados consolidados como qtde de canais, valor gasto, melhores resultados
+- Ao clicar no card do canal assinado abre um modal com a opções de unsubscribe
+
+
+# Tech Stack
+- Nextjs
+- Schadcn
+- Supabase
+- Telegram
+- Stripe ou MercadoPago
+- Origin Ui
+(sugerir mais ferramentas)
+
+# Ferramentas de Desenvolvimento
+- Claude Code
+- Cursor
+
+# Etapas de Desenvolvimento
+1 Setup inicial Nextjs
+2 Criar base de dados Supabase
+3 Páginas Placeholder, dividindo em páginas públicas e privadas
+4 Sistema de Login
+5 Criar demais páginas
+2 
