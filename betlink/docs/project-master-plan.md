@@ -555,6 +555,32 @@ EPIC 6: ⬜ 0/5 features (0%)
 
 ---
 
+## 🎯 Development Protocol Updates
+
+### Cursor IDE Integration (Updated: July 22, 2025)
+**IMPORTANT**: New protocol for Supabase database operations.
+
+**When database operations are needed:**
+1. **Claude Code creates**: `docs/cursor-instructions/[feature-name]-database-ops.md`
+2. **Document contains**: Exact Cursor IDE commands with @supabase prompts
+3. **Human executes**: Database operations via Cursor IDE
+4. **Feature continues**: After database operations complete
+
+**Benefits**:
+- ✅ Reliable database operations via proven Cursor MCP
+- ✅ Version controlled database instructions
+- ✅ No sensitive tokens in Claude Code environment
+- ✅ Faster development cycle
+
+**Example Workflow**:
+```
+Claude Code: Creates feature-1-3-database-ops.md
+Human: Executes @supabase commands in Cursor
+Claude Code: Continues feature development
+```
+
+---
+
 ## 🎯 Project Completion Criteria
 
 ### MVP Ready:

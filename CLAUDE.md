@@ -28,10 +28,20 @@ BetLink is an **active development project**. The codebase is organized with a c
 - **Deployment**: Vercel
 
 ### Configured MCPs
-- **context7**: Context management and project understanding
-- **supabase**: Direct Supabase integration and management
+- **context7**: Context management and project understanding  
+- **supabase**: ⚠️ **USE CURSOR ONLY** - Database operations via Cursor IDE
 - **playwright**: Automated testing and browser automation
 - **github-server**: GitHub repository management and API integration
+
+### Supabase MCP Protocol
+**IMPORTANT**: All Supabase database operations must be done through **Cursor IDE** with its Supabase MCP integration.
+
+**When Claude Code needs Supabase operations:**
+1. **DO NOT** attempt direct Supabase MCP calls
+2. **CREATE** instruction document in `docs/cursor-instructions/`
+3. **DOCUMENT** exact SQL commands and operations needed
+4. **NOTIFY** human to execute via Cursor IDE
+5. **CONTINUE** with feature development after database operations complete
 
 ### Database Schema
 The complete database schema is defined in `.planning/db_schema.txt` with:
@@ -57,6 +67,7 @@ betlink/docs/
 │   ├── testing/              # Stage 4: Human testing checklists
 │   ├── learnings/            # Stage 6: Implementation insights
 │   └── handover/             # Stage 6: Setup for next features
+├── cursor-instructions/       # Database operations for Cursor IDE
 ├── epics/                    # Epic-level documentation
 │   ├── epic-1-foundation/
 │   ├── epic-2-public-area/
@@ -167,7 +178,8 @@ When implementing features, **ALWAYS** follow this protocol:
 2. Update: betlink/docs/features/progress/feature-X-Y-progress.md regularly
 3. Update: betlink/docs/project-master-plan.md for milestones
 4. Create: betlink/docs/features/testing/feature-X-Y-test.md for Stage 4
-5. Notify human of significant progress updates
+5. **SUPABASE OPERATIONS**: Create instruction documents in docs/cursor-instructions/
+6. Notify human of significant progress updates and database operations needed
 ```
 
 #### ✅ After Feature Completion:
@@ -193,6 +205,45 @@ When implementing features, **ALWAYS** follow this protocol:
 - Major milestones are reached
 - AI suggestions are made that affect the roadmap
 - Stage 4 (Human Testing) is ready to begin
+- **Supabase database operations are needed** (create instruction document)
+
+## 🎯 Cursor IDE Integration Protocol
+
+### Database Operations via Cursor
+When any Supabase database work is required, Claude Code must:
+
+1. **Create Cursor Instruction Document**:
+   ```
+   File: docs/cursor-instructions/[feature-name]-database-ops.md
+   Content: Step-by-step instructions for Cursor IDE execution
+   ```
+
+2. **Document Template**:
+   ```markdown
+   # Cursor Instructions: [Feature Name] - Database Operations
+   
+   ## 🎯 Objective
+   [What needs to be accomplished]
+   
+   ## 📋 Cursor Commands
+   Open Cursor IDE and use these exact commands with @supabase:
+   
+   ```
+   @supabase [Exact prompt for Cursor]
+   ```
+   
+   ## 🔍 Verification
+   [How to verify the operations worked]
+   
+   ## ➡️ Next Steps
+   [What Claude Code will do after this is complete]
+   ```
+
+3. **Notification Process**:
+   - Create the instruction document
+   - Update feature progress with "⏳ Waiting for Cursor database operations"
+   - Notify human: "Database operations needed - see docs/cursor-instructions/"
+   - Pause feature development until database operations complete
 
 ### Current Documentation Status
 
