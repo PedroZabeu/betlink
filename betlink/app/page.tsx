@@ -1,8 +1,59 @@
-const FEATURE_NAME = '[Feature 1.1: Initial Setup]';
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { supabase } from '@/lib/supabase'
 
-export default function Home() {
+const FEATURE_NAME = '[Feature 1.2: Supabase Connection]';
+
+type Profile = {
+  id: string
+  email: string
+  name: string
+  role: 'Master' | 'Admin' | 'Tipster' | 'Cliente'
+  created_at: string
+}
+
+function getRoleBadgeColor(role: string) {
+  switch (role) {
+    case 'Master': return 'bg-purple-600 text-white'
+    case 'Admin': return 'bg-red-600 text-white'
+    case 'Tipster': return 'bg-blue-600 text-white'
+    case 'Cliente': return 'bg-green-600 text-white'
+    default: return 'bg-gray-600 text-white'
+  }
+}
+
+async function getUsersFromDatabase(): Promise<{ users: Profile[], error: string | null }> {
+  console.log(`${FEATURE_NAME} Fetching users from Supabase database...`);
+  
+  try {
+    const { data: profiles, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error(`${FEATURE_NAME} Database error:`, error);
+      return { users: [], error: error.message };
+    }
+
+    if (!profiles || profiles.length === 0) {
+      console.warn(`${FEATURE_NAME} No profiles found in database`);
+      return { users: [], error: 'No users found in database' };
+    }
+
+    console.log(`${FEATURE_NAME} Successfully fetched ${profiles.length} users from database`);
+    return { users: profiles, error: null };
+    
+  } catch (error) {
+    console.error(`${FEATURE_NAME} Unexpected error:`, error);
+    return { users: [], error: 'Failed to connect to database' };
+  }
+}
+
+export default async function Home() {
   console.log(`${FEATURE_NAME} Starting homepage render...`);
-  console.log(`${FEATURE_NAME} Tailwind classes applied successfully`);
+  
+  const { users, error } = await getUsersFromDatabase();
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-24">
@@ -24,6 +75,16 @@ export default function Home() {
           </p>
           <p className="text-sm opacity-90">
             Next.js + TypeScript + Tailwind CSS + Supabase + shadcn/ui
+          </p>
+        </div>
+
+        {/* Feature 1.2: Users from Database */}
+        <div className="bg-gradient-to-r from-green-500 to-teal-600 text-white px-8 py-6 rounded-lg shadow-lg mb-8">
+          <p className="text-lg font-semibold mb-2">
+            🎉 Feature 1.2: Supabase Connection + Real Database Users
+          </p>
+          <p className="text-sm opacity-90">
+            {error ? 'Database connection configured • Table creation required' : `Live database connection • ${users.length} users loaded from Supabase`}
           </p>
         </div>
         
@@ -76,11 +137,49 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Users from Database Section */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm mb-6">
+            <h3 className="text-lg font-semibold mb-4 text-gray-800">👥 Users from Supabase Database</h3>
+            
+            {error ? (
+              <div className="text-center py-8">
+                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                  ❌ <strong>Database Error:</strong> {error}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {users.map((user) => (
+                    <Card key={user.id} className="hover:shadow-md transition-shadow">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="flex items-center justify-between text-base">
+                          <span className="text-gray-800">{user.name}</span>
+                          <Badge className={getRoleBadgeColor(user.role)}>
+                            {user.role}
+                          </Badge>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <p className="text-sm text-gray-600">{user.email}</p>
+                        <p className="text-xs text-gray-400 mt-1">ID: {user.id.substring(0, 8)}...</p>
+                        <p className="text-xs text-gray-400">Added: {new Date(user.created_at).toLocaleDateString()}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded text-sm text-green-700">
+                  ✅ <strong>Database Connection:</strong> Successfully loaded {users.length} users from Supabase
+                </div>
+              </>
+            )}
+          </div>
+
           {/* Next Steps */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 shadow-sm">
             <h3 className="text-lg font-semibold mb-2 text-blue-800">🔜 Coming Next</h3>
             <p className="text-sm text-blue-600">
-              Feature 1.2: Supabase Connection + Mock Users Display
+              Feature 1.3: Role-Based Placeholder Pages
             </p>
           </div>
         </div>
