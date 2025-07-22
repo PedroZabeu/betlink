@@ -56,7 +56,7 @@ export default async function Home() {
   const { users, error } = await getUsersFromDatabase();
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-24">
+    <main className="flex min-h-screen flex-col items-center justify-center p-8 pt-24">
       <div className="z-10 w-full max-w-5xl items-center justify-between text-center">
         {/* Main Title */}
         <div className="mb-8">
