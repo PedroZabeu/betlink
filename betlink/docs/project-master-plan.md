@@ -48,18 +48,21 @@
 - [✅] Feature 1.1: Initial Setup ✅ **COMPLETE** (July 21, 2025)
   - [✅] Create Next.js project with TypeScript
   - [✅] Install and configure Tailwind CSS
-  - [⬜] Setup Supabase project (placeholder for future)
-  - [⬜] Configure environment variables (placeholder for future)
+  - [✅] Setup Supabase project (ttnwqnjjkzxlqzxgcmuw)
+  - [✅] Configure environment variables (.env.local)
   - [✅] Install shadcn/ui
   - [✅] Create folder structure
   - [✅] Test: "Hello BetLink" with styled component at localhost:3000
 
-- [ ] Feature 1.2: Supabase Connection + Mock Users Display
-  - [ ] Create basic profiles table (id, email, name, role)
-  - [ ] Insert 4 mock users (master, admin, tipster, client)
-  - [ ] Update homepage to fetch and display users from Supabase
-  - [ ] Show users in table/cards on homepage
-  - [ ] Test: Visit localhost:3000 and see mock users displayed
+- [✅] Feature 1.2: Supabase Connection + Real Database Users
+  - [✅] Create profiles table with UUID, email, name, role, created_at columns
+  - [✅] Insert 4 test users via Cursor MCP (Master, Admin, Tipster, Cliente)
+  - [✅] Update homepage to fetch and display users from live Supabase database
+  - [✅] Show users in responsive card layout with role-based color badges
+  - [✅] Implement async server-side data fetching with error handling
+  - [✅] Test: Visit localhost:3000 and see live database users displayed
+  - [✅] Establish Cursor IDE protocol for database operations
+  - [✅] Complete Stage 6 documentation (learning & handover)
 
 - [ ] Feature 1.3: Role-Based Placeholder Pages
   - [ ] Create /admin placeholder page
