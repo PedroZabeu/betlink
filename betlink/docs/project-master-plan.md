@@ -71,12 +71,13 @@
   - [✅] Add navigation menu to homepage
   - [✅] Test: Click navigation links and see different pages
 
-- [ ] Feature 1.4: Basic Authentication
-  - [ ] Create /login route with form
-  - [ ] Implement Supabase Auth integration
-  - [ ] Show login credentials on homepage
-  - [ ] Add role-based redirects after login
-  - [ ] Test: Login with each mock user, see correct redirects
+- [✅] Feature 1.4: Basic Authentication ✅ **COMPLETE** (July 22-23, 2025)
+  - [✅] Update profile schema with required fields (phone, telegram, etc.)
+  - [✅] Create /login route with full validation
+  - [✅] Implement Supabase Auth integration with rate limiting
+  - [✅] Show complete test credentials on homepage
+  - [✅] Add role-based redirects after login
+  - [✅] Test: Login with each user, validate all security features
 
 - [ ] Feature 1.5: Middleware + RLS for Users
   - [ ] Create middleware.ts protecting routes
@@ -402,10 +403,10 @@
 
 ## 📊 Progress Tracking
 
-### Overall Progress: 2/35 Features (6% - Features 1.1 & 1.2 Complete, 1.3 In Progress)
+### Overall Progress: 4/35 Features (11% - Features 1.1-1.4 Complete)
 
 ```
-EPIC 1: 🟦 2/7 features (29% - Features 1.1-1.2 complete, 1.3 in progress)
+EPIC 1: 🟦 4/7 features (57% - Features 1.1-1.4 complete)
 EPIC 2: ⬜ 0/5 features (0%)
 EPIC 3: ⬜ 0/5 features (0%)
 EPIC 4: ⬜ 0/5 features (0%)

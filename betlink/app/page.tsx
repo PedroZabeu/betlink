@@ -1,14 +1,19 @@
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { supabase } from '@/lib/supabase'
+import { supabase, TEST_CREDENTIALS } from '@/lib/supabase'
 
 const FEATURE_NAME = '[Feature 1.2: Supabase Connection]';
 
+// Define the Profile type based on our database schema
 type Profile = {
   id: string
   email: string
   name: string
   role: 'Master' | 'Admin' | 'Tipster' | 'Cliente'
+  phone: string
+  telegram_username: string
+  login_attempts: number
+  user_id: string
   created_at: string
 }
 
@@ -53,10 +58,11 @@ async function getUsersFromDatabase(): Promise<{ users: Profile[], error: string
 export default async function Home() {
   console.log(`${FEATURE_NAME} Starting homepage render...`);
   
+  // Fetch users from Supabase database
   const { users, error } = await getUsersFromDatabase();
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-8 pt-24">
+    <main className="flex min-h-screen flex-col items-center justify-center p-24">
       <div className="z-10 w-full max-w-5xl items-center justify-between text-center">
         {/* Main Title */}
         <div className="mb-8">
@@ -68,24 +74,34 @@ export default async function Home() {
           </p>
         </div>
 
-        {/* Feature Completion Card */}
-        <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-8 py-6 rounded-lg shadow-lg mb-8">
-          <p className="text-lg font-semibold mb-2">
-            🚀 Feature 1.1: Initial Setup Complete
-          </p>
-          <p className="text-sm opacity-90">
-            Next.js + TypeScript + Tailwind CSS + Supabase + shadcn/ui
-          </p>
-        </div>
+        {/* Feature Completion Cards */}
+        <div className="space-y-4 mb-8">
+          <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-8 py-6 rounded-lg shadow-lg">
+            <p className="text-lg font-semibold mb-2">
+              ✅ Feature 1.1: Initial Setup Complete
+            </p>
+            <p className="text-sm opacity-90">
+              Next.js + TypeScript + Tailwind CSS + Supabase + shadcn/ui
+            </p>
+          </div>
+          
+          <div className="bg-gradient-to-r from-green-500 to-teal-600 text-white px-8 py-6 rounded-lg shadow-lg">
+            <p className="text-lg font-semibold mb-2">
+              ✅ Feature 1.2: Database Connection Complete
+            </p>
+            <p className="text-sm opacity-90">
+              {error ? 'Database connection configured • Table creation required' : `Live database connection • ${users.length} users loaded from Supabase`}
+            </p>
+          </div>
 
-        {/* Feature 1.2: Users from Database */}
-        <div className="bg-gradient-to-r from-green-500 to-teal-600 text-white px-8 py-6 rounded-lg shadow-lg mb-8">
-          <p className="text-lg font-semibold mb-2">
-            🎉 Feature 1.2: Supabase Connection + Real Database Users
-          </p>
-          <p className="text-sm opacity-90">
-            {error ? 'Database connection configured • Table creation required' : `Live database connection • ${users.length} users loaded from Supabase`}
-          </p>
+          <div className="bg-gradient-to-r from-emerald-500 to-green-600 text-white px-8 py-6 rounded-lg shadow-lg">
+            <p className="text-lg font-semibold mb-2">
+              ✅ Feature 1.4: Authentication READY! 
+            </p>
+            <p className="text-sm opacity-90">
+              Auth users created • Profiles linked • Password: 123456 • Ready for login testing!
+            </p>
+          </div>
         </div>
         
         {/* Tech Stack Showcase */}
@@ -110,7 +126,7 @@ export default async function Home() {
               <div className="space-y-2">
                 <div className="flex items-center">
                   <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                  Supabase client configured
+                  Supabase Auth configured
                 </div>
                 <div className="flex items-center">
                   <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
@@ -118,36 +134,48 @@ export default async function Home() {
                 </div>
                 <div className="flex items-center">
                   <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                  Folder structure created
+                  Authentication users created
                 </div>
               </div>
             </div>
           </div>
-          
-          {/* Test Instructions */}
-          <div className="bg-slate-50 border border-gray-200 rounded-lg p-6 shadow-sm">
-            <h3 className="text-lg font-semibold mb-2 text-gray-800">📋 Manual Test Instructions</h3>
-            <div className="text-sm text-gray-600 space-y-2">
-              <p>
-                ✅ Visit <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono">localhost:3000</code> to see this styled page
-              </p>
-              <p>✅ Verify Tailwind CSS styling is working correctly</p>
-              <p>✅ Check browser console for no errors</p>
-              <p>✅ Test responsive design on different screen sizes</p>
+
+          {/* Test Credentials for Feature 1.4 */}
+          <div className="bg-green-50 border border-green-200 rounded-lg p-6 shadow-sm">
+            <h3 className="text-lg font-semibold mb-4 text-green-800">🔐 LIVE Authentication - Ready for Testing!</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {TEST_CREDENTIALS.map((cred) => (
+                <div key={cred.email} className="bg-white p-4 rounded border border-green-300">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-gray-800">{cred.name}</span>
+                    <Badge className={getRoleBadgeColor(cred.role)}>{cred.role}</Badge>
+                  </div>
+                  <div className="text-sm text-gray-600 space-y-1">
+                    <p><strong>Email:</strong> {cred.email}</p>
+                    <p><strong>Password:</strong> <code className="bg-green-100 px-2 py-1 rounded font-mono text-green-800">{cred.password}</code></p>
+                    <p className="text-xs text-gray-500">Auth ID: {cred.user_id.substring(0, 8)}...</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 p-3 bg-green-100 border border-green-300 rounded text-sm text-green-700">
+              🎉 <strong>Authentication Ready:</strong> All 4 auth users created and linked to profiles! Test login functionality now.
             </div>
           </div>
 
           {/* Users from Database Section */}
           <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm mb-6">
-            <h3 className="text-lg font-semibold mb-4 text-gray-800">👥 Users from Supabase Database</h3>
+            <h3 className="text-lg font-semibold mb-4 text-gray-800">👥 Enhanced User Profiles from Database</h3>
             
             {error ? (
+              // Error state - show error message and instructions
               <div className="text-center py-8">
                 <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded text-sm text-red-700">
                   ❌ <strong>Database Error:</strong> {error}
                 </div>
               </div>
             ) : (
+              // Success state - show users from database
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {users.map((user) => (
@@ -161,15 +189,21 @@ export default async function Home() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="pt-0">
-                        <p className="text-sm text-gray-600">{user.email}</p>
-                        <p className="text-xs text-gray-400 mt-1">ID: {user.id.substring(0, 8)}...</p>
-                        <p className="text-xs text-gray-400">Added: {new Date(user.created_at).toLocaleDateString()}</p>
+                        <div className="space-y-1 text-sm">
+                          <p className="text-gray-600">{user.email}</p>
+                          <p className="text-gray-600">📱 {user.phone}</p>
+                          <p className="text-gray-600">📱 @{user.telegram_username}</p>
+                          <p className="text-xs text-green-600 font-medium">🔐 Auth Linked: {user.user_id.substring(0, 8)}...</p>
+                          <p className="text-xs text-gray-400">Login attempts: {user.login_attempts}</p>
+                          <p className="text-xs text-gray-400">Profile ID: {user.id.substring(0, 8)}...</p>
+                          <p className="text-xs text-gray-400">Added: {new Date(user.created_at).toLocaleDateString()}</p>
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
                 </div>
                 <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded text-sm text-green-700">
-                  ✅ <strong>Database Connection:</strong> Successfully loaded {users.length} users from Supabase
+                  ✅ <strong>Full Authentication Setup:</strong> {users.length} users with profiles linked to Supabase Auth users
                 </div>
               </>
             )}
@@ -177,10 +211,12 @@ export default async function Home() {
 
           {/* Next Steps */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 shadow-sm">
-            <h3 className="text-lg font-semibold mb-2 text-blue-800">🔜 Coming Next</h3>
-            <p className="text-sm text-blue-600">
-              Feature 1.3: Role-Based Placeholder Pages
-            </p>
+            <h3 className="text-lg font-semibold mb-2 text-blue-800">🔜 Ready for Implementation</h3>
+            <div className="space-y-2 text-sm text-blue-600">
+              <p><strong>Next:</strong> Login form component and authentication flow</p>
+              <p><strong>Ready:</strong> Role-based dashboard pages and routing</p>
+              <p><strong>Future:</strong> Middleware + Row Level Security (Feature 1.5)</p>
+            </div>
           </div>
         </div>
       </div>

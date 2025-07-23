@@ -1,31 +1,30 @@
-import SignUpForm from '@/components/features/auth/SignUpForm';
-import Link from 'next/link';
-
-export default function SignUpPage() {
+export default function SignupPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-blue-600 mb-2">BetLink</h1>
-          <h2 className="text-xl text-gray-600">Criar Conta de Cliente</h2>
-        </div>
-        
-        <SignUpForm />
-        
-        <div className="text-center">
-          <p className="text-sm text-gray-600">
-            Já tem uma conta?{' '}
-            <Link href="/login" className="font-medium text-blue-600 hover:text-blue-500">
-              Faça login
-            </Link>
-          </p>
-        </div>
-
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-xs text-gray-500">
-          <p className="font-semibold mb-1">Nota:</p>
-          <p>Contas de tipster são criadas apenas por administradores. Se você é um tipster interessado em participar da plataforma, entre em contato conosco.</p>
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
+          Criar Conta
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          Em breve! Esta funcionalidade será implementada na Feature 1.7
+        </p>
+      </div>
+      
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+          <div className="text-center">
+            <p className="text-gray-600 mb-4">
+              A funcionalidade de cadastro será implementada em breve.
+            </p>
+            <a 
+              href="/login" 
+              className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Voltar para Login
+            </a>
+          </div>
         </div>
       </div>
     </div>
-  );
+  )
 }

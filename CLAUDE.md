@@ -313,6 +313,153 @@ git push origin main
 - **ALWAYS** use descriptive commit messages following the template above
 - Create commits for major milestones within features if implementation is complex
 
+## Naming Conventions
+
+### File and Folder Structure
+
+#### Routes and Pages
+- **Route folders**: Use `kebab-case` for URLs (e.g., `meus-canais/`, `betting-history/`)
+- **Route groups**: Use parentheses for grouping without affecting URL (e.g., `(auth)/`, `(admin)/`)
+- **Dynamic routes**: Use square brackets (e.g., `[id]/`, `[slug]/`)
+- **Private folders**: Use underscore prefix (e.g., `_components/`)
+
+#### Components
+- **Component files**: Use `PascalCase.tsx` (e.g., `BettingCard.tsx`, `LoginForm.tsx`)
+- **Component folders**: Match component name (e.g., `BettingCard/index.tsx`)
+- **Test files**: Same name + `.test.tsx` (e.g., `BettingCard.test.tsx`)
+- **Style modules**: Same name + `.module.css` (e.g., `BettingCard.module.css`)
+
+#### Utilities and Hooks
+- **Hook files**: Use `camelCase` with 'use' prefix (e.g., `useAuth.ts`, `useBettingCart.ts`)
+- **Utility files**: Use `camelCase` (e.g., `calculateProfit.ts`, `formatCurrency.ts`)
+- **Service files**: Use `camelCase` with '.service' suffix (e.g., `auth.service.ts`)
+
+### Code Conventions
+
+#### Variables and Constants
+```typescript
+// Constants - SCREAMING_SNAKE_CASE
+const MAX_BET_AMOUNT = 10000
+const API_TIMEOUT = 5000
+
+// Boolean variables - is/has prefix
+const isLoading = false
+const hasError = true
+
+// Arrays - plural names
+const users = []
+const selectedMatches = []
+
+// Objects - singular names
+const currentUser = {}
+const betDetails = {}
+```
+
+#### Functions
+```typescript
+// Regular functions - verb prefix, camelCase
+function calculateExpectedValue() {}
+function validateBetAmount() {}
+
+// Event handlers - handle prefix
+const handleSubmit = () => {}
+const handleOddsUpdate = () => {}
+
+// Async functions - action verbs
+async function fetchUserData() {}
+async function createBet() {}
+async function updateProfile() {}
+
+// Server Actions - 'Action' suffix
+async function createBetAction() {}
+```
+
+#### Types and Interfaces
+```typescript
+// Interfaces - PascalCase, no 'I' prefix
+interface User {
+  id: string
+  email: string
+}
+
+// Component Props - PascalCase + 'Props' suffix
+interface BettingCardProps {
+  bet: Bet
+  onSubmit?: () => void
+}
+
+// Type aliases - PascalCase
+type BetStatus = 'pending' | 'won' | 'lost'
+```
+
+### Project-Specific Conventions
+
+#### User Roles
+- Always use Portuguese role names: `Master`, `Admin`, `Tipster`, `Cliente`
+- Role colors are defined in constants: Purple (Master), Red (Admin), Blue (Tipster), Green (Cliente)
+
+#### Database Fields
+- Use `snake_case` for database columns (Supabase/PostgreSQL convention)
+- Use `camelCase` when converting to TypeScript objects
+- Foreign keys: `tableName_id` pattern (e.g., `user_id`, `channel_id`)
+
+#### API Routes
+```
+/api/auth/login       # Authentication endpoints
+/api/channels         # Resource endpoints (plural)
+/api/channels/[id]    # Individual resource
+/api/webhooks/stripe  # External service webhooks
+```
+
+### Quick Reference Checklist
+
+| Type | Convention | Example |
+|------|------------|---------|
+| Component files | PascalCase | `ChannelCard.tsx` |
+| Route folders | kebab-case | `meus-canais/` |
+| Hooks | camelCase + use | `useChannel.ts` |
+| Utils | camelCase | `formatCurrency.ts` |
+| Constants | SCREAMING_SNAKE | `MAX_CHANNELS` |
+| Props interface | PascalCase + Props | `ChannelCardProps` |
+| Boolean vars | is/has prefix | `isActive` |
+| Arrays | Plural | `channels` |
+| Event handlers | handle prefix | `handleClick` |
+
+## Error Prevention & Troubleshooting
+
+### Console Error Logging Strategy
+**CRITICAL**: When implementing any feature, ALWAYS add comprehensive error logging to enable debugging via browser DevTools console.
+
+#### Implementation Requirements:
+1. **Try-Catch Blocks**: Wrap all async operations and API calls in try-catch blocks with descriptive error logging
+2. **Error Context**: Include relevant context in error logs (component name, function, user action, data state)
+3. **Console Methods**: Use appropriate console methods:
+   - `console.error()` for errors
+   - `console.warn()` for warnings
+   - `console.log()` for important state changes during development
+   - `console.debug()` for detailed debugging info
+
+#### Example Error Logging Pattern:
+```typescript
+try {
+  const result = await someOperation();
+  console.log('[ComponentName] Operation successful:', result);
+} catch (error) {
+  console.error('[ComponentName] Operation failed:', {
+    error,
+    context: { userId, channelId, action: 'someOperation' },
+    timestamp: new Date().toISOString()
+  });
+  // Re-throw or handle appropriately
+}
+```
+
+#### Benefits:
+- Human can open browser DevTools and immediately see what went wrong
+- Errors include enough context to understand the failure point
+- Claude Code can analyze the console output to provide targeted fixes
+- Reduces debugging time significantly
+
 ## Important Notes
 
 - All users (except Master/Admin) require Telegram integration

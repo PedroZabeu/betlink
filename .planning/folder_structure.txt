@@ -1,0 +1,369 @@
+# Estrutura de Pastas BetHub - Next.js + Supabase
+
+```
+📦 bethub/
+├── 📂 app/                          # App Router (Next.js 14+)
+│   ├── 📂 (auth)/                   # Grupo de rotas de autenticação
+│   │   ├── 📂 login/
+│   │   │   ├── page.tsx             # Login geral
+│   │   │   └── loading.tsx
+│   │   ├── 📂 register/
+│   │   │   └── page.tsx             # Cadastro de clientes
+│   │   └── layout.tsx               # Layout compartilhado auth
+│   │
+│   ├── 📂 (public)/                 # Área pública
+│   │   ├── 📂 canais/
+│   │   │   ├── page.tsx             # Lista de canais
+│   │   │   └── loading.tsx
+│   │   ├── 📂 canal/
+│   │   │   └── 📂 [id]/
+│   │   │       └── page.tsx         # Página individual do canal
+│   │   ├── 📂 blog/
+│   │   │   ├── page.tsx
+│   │   │   └── 📂 [slug]/
+│   │   │       └── page.tsx
+│   │   └── layout.tsx               # Layout público com header/footer
+│   │
+│   ├── 📂 (cliente)/                # Área do cliente
+│   │   ├── 📂 dashboard/
+│   │   │   └── page.tsx             # Dashboard do cliente
+│   │   └── layout.tsx               # Layout protegido cliente
+│   │
+│   ├── 📂 (tipster)/                # Área do tipster
+│   │   ├── 📂 tipster/
+│   │   │   └── 📂 login/
+│   │   │       └── page.tsx         # Login separado tipster
+│   │   ├── 📂 meus-canais/
+│   │   │   └── page.tsx             # Lista de canais do tipster
+│   
+│   │   ├── 📂 minhas-solicitacoes/
+│   │   │   └── page.tsx             # Status das solicitações
+│   │   ├── 📂 [canal]/              # Páginas específicas do canal
+│   │   │   ├── 📂 clientes/
+│   │   │   │   └── page.tsx         # Gestão de clientes
+│   │   │   └── 📂 apostas/
+│   │   │       └── page.tsx         # Gestão de apostas
+│   │   └── layout.tsx               # Layout protegido tipster
+│   │
+│   ├── 📂 (admin)/                  # Área administrativa
+│   │   ├── 📂 admin/
+│   │   │   ├── 📂 dashboard/
+│   │   │   │   └── page.tsx
+│   │   │   ├── 📂 tipsters/
+│   │   │   │   └── page.tsx
+│   │   │   ├── 📂 canais/
+│   │   │   │   └── page.tsx
+│   │   │   ├── 📂 solicitacoes/
+│   │   │   │   └── page.tsx
+│   │   │   ├── 📂 clientes/
+│   │   │   │   └── page.tsx
+│   │   │   ├── 📂 relatorios/
+│   │   │   │   └── page.tsx
+│   │   │   ├── 📂 configuracoes/
+│   │   │   │   └── page.tsx
+│   │   │   └── 📂 suporte/
+│   │   │       └── page.tsx
+│   │   └── layout.tsx               # Layout protegido admin
+│   │
+│   ├── 📂 api/                      # API Routes
+│   │   ├── 📂 auth/
+│   │   │   ├── 📂 callback/
+│   │   │   │   └── route.ts         # Callback Supabase
+│   │   │   ├── 📂 login/
+│   │   │   │   └── route.ts
+│   │   │   └── 📂 logout/
+│   │   │       └── route.ts
+│   │   ├── 📂 webhooks/
+│   │   │   ├── 📂 stripe/
+│   │   │   │   └── route.ts         # Webhooks do Stripe
+│   │   │   └── 📂 telegram/
+│   │   │       └── route.ts         # Webhooks do Telegram
+│   │   ├── 📂 telegram/
+│   │   │   ├── 📂 add-member/
+│   │   │   │   └── route.ts
+│   │   │   └── 📂 remove-member/
+│   │   │       └── route.ts
+│   │   ├── 📂 payment/
+│   │   │   ├── 📂 create-intent/
+│   │   │   │   └── route.ts
+│   │   │   └── 📂 cancel-subscription/
+│   │   │       └── route.ts
+│   │   └── 📂 cron/                 # Jobs agendados
+│   │       ├── 📂 process-renewals/
+│   │       │   └── route.ts
+│   │       └── 📂 update-subscriptions/
+│   │           └── route.ts
+│   │
+│   ├── layout.tsx                   # Layout raiz
+│   ├── page.tsx                     # Landing page
+│   ├── loading.tsx                  # Loading global
+│   ├── error.tsx                    # Error boundary
+│   ├── not-found.tsx                # 404
+│   └── globals.css                  # Estilos globais
+│
+├── 📂 components/                   # Componentes reutilizáveis
+│   ├── 📂 ui/                       # shadcn/ui components
+│   │   ├── button.tsx
+│   │   ├── card.tsx
+│   │   ├── dialog.tsx
+│   │   ├── input.tsx
+│   │   ├── table.tsx
+│   │   └── ... (outros componentes shadcn)
+│   │
+│   ├── 📂 layout/                   # Componentes de layout
+│   │   ├── header/
+│   │   │   ├── public-header.tsx
+│   │   │   ├── admin-header.tsx
+│   │   │   └── tipster-header.tsx
+│   │   ├── footer.tsx
+│   │   ├── sidebar.tsx
+│   │   └── navigation.tsx
+│   │
+│   ├── 📂 features/                 # Componentes por feature
+│   │   ├── 📂 auth/
+│   │   │   ├── login-form.tsx
+│   │   │   ├── register-form.tsx
+│   │   │   └── auth-guard.tsx
+│   │   ├── 📂 canais/
+│   │   │   ├── canal-card.tsx
+│   │   │   ├── canal-filters.tsx
+│   │   │   ├── canal-stats.tsx
+│   │   │   └── solicitar-canal-modal.tsx
+│   │   ├── 📂 payment/
+│   │   │   ├── checkout-form.tsx
+│   │   │   ├── payment-method-selector.tsx
+│   │   │   └── stripe-elements.tsx
+│   │   ├── 📂 apostas/
+│   │   │   ├── apostas-table.tsx
+│   │   │   ├── apostas-chart.tsx
+│   │   │   └── status-badge.tsx
+│   │   └── 📂 dashboard/
+│   │       ├── metrics-card.tsx
+│   │       ├── revenue-chart.tsx
+│   │       └── activity-feed.tsx
+│   │
+│   └── 📂 shared/                   # Componentes compartilhados
+│       ├── loading-skeleton.tsx
+│       ├── error-boundary.tsx
+│       ├── empty-state.tsx
+│       └── pagination.tsx
+│
+├── 📂 lib/                          # Utilitários e configurações
+│   ├── 📂 supabase/
+│   │   ├── client.ts                # Cliente browser
+│   │   ├── server.ts                # Cliente server
+│   │   ├── middleware.ts            # Middleware auth
+│   │   └── admin.ts                 # Admin client
+│   ├── 📂 stripe/
+│   │   ├── client.ts
+│   │   ├── server.ts
+│   │   └── webhooks.ts
+│   ├── 📂 telegram/
+│   │   ├── bot.ts
+│   │   ├── api.ts
+│   │   └── templates.ts
+│   ├── auth.ts                      # Funções de autenticação
+│   ├── utils.ts                     # Utilitários gerais
+│   ├── constants.ts                 # Constantes do app
+│   └── validations.ts               # Schemas de validação
+│
+├── 📂 hooks/                        # Custom hooks
+│   ├── use-auth.ts
+│   ├── use-canal.ts
+│   ├── use-subscription.ts
+│   ├── use-telegram.ts
+│   └── use-realtime.ts
+│
+├── 📂 services/                     # Serviços e integrações
+│   ├── 📂 api/
+│   │   ├── auth.service.ts
+│   │   ├── canal.service.ts
+│   │   ├── tipster.service.ts
+│   │   ├── payment.service.ts
+│   │   └── telegram.service.ts
+│   └── 📂 external/
+│       ├── stripe.service.ts
+│       └── telegram.service.ts
+│
+├── 📂 store/                        # Estado global (Zustand)
+│   ├── auth.store.ts
+│   ├── canal.store.ts
+│   └── notification.store.ts
+│
+├── 📂 types/                        # TypeScript types
+│   ├── database.types.ts            # Gerado pelo Supabase
+│   ├── auth.types.ts
+│   ├── canal.types.ts
+│   ├── payment.types.ts
+│   └── global.d.ts
+│
+├── 📂 styles/                       # Estilos adicionais
+│   └── 📂 components/
+│       └── custom.css
+│
+├── 📂 public/                       # Arquivos estáticos
+│   ├── 📂 images/
+│   ├── 📂 fonts/
+│   └── favicon.ico
+│
+├── 📂 scripts/                      # Scripts auxiliares
+│   ├── generate-types.js            # Gera types do Supabase
+│   └── seed-database.js             # Seed inicial
+│
+├── 📂 tests/                        # Testes
+│   ├── 📂 unit/
+│   ├── 📂 integration/
+│   └── 📂 e2e/
+│
+├── .env.local                       # Variáveis de ambiente
+├── .env.example
+├── .eslintrc.json
+├── .gitignore
+├── middleware.ts                    # Middleware Next.js
+├── next.config.js
+├── package.json
+├── README.md
+├── tailwind.config.ts
+└── tsconfig.json
+```
+
+## 📋 Organização por Funcionalidade
+
+### 🔐 Autenticação e Autorização
+```
+- middleware.ts                      # Proteção de rotas
+- lib/supabase/middleware.ts        # Auth middleware
+- components/features/auth/         # Componentes de auth
+- hooks/use-auth.ts                # Hook de autenticação
+- services/api/auth.service.ts     # Serviço de auth
+```
+
+### 💳 Sistema de Pagamentos
+```
+- app/api/payment/                 # APIs de pagamento
+- app/api/webhooks/stripe/        # Webhooks Stripe
+- components/features/payment/    # Componentes checkout
+- lib/stripe/                    # Configuração Stripe
+- services/api/payment.service.ts # Lógica de pagamento
+```
+
+### 📱 Integração Telegram
+```
+- app/api/webhooks/telegram/      # Webhooks Telegram
+- app/api/telegram/              # APIs Telegram
+- lib/telegram/                  # Bot e API config
+- services/external/telegram.service.ts
+```
+
+### 📊 Dashboard e Analytics
+```
+- components/features/dashboard/  # Componentes dashboard
+- app/(admin)/admin/dashboard/   # Dashboard admin
+- app/(cliente)/dashboard/       # Dashboard cliente
+- app/(tipster)/meus-canais/    # Dashboard tipster
+```
+
+## 🚀 Fluxo de Desenvolvimento
+
+### Fase 1: Setup Inicial (Semana 1)
+1. ✅ Configurar Next.js + TypeScript
+2. ✅ Instalar shadcn/ui
+3. ✅ Configurar Supabase
+4. ✅ Configurar Tailwind CSS
+5. ✅ Estrutura base de pastas
+
+### Fase 2: Autenticação (Semana 2)
+1. ✅ Sistema de login/registro
+2. ✅ Middleware de proteção
+3. ✅ Roles e permissões
+4. ✅ Páginas de auth
+
+### Fase 3: Core Features (Semana 3-4)
+1. ✅ CRUD de canais
+2. ✅ Sistema de assinaturas
+3. ✅ Integração Telegram
+4. ✅ Dashboard básico
+
+### Fase 4: Pagamentos (Semana 5)
+1. ✅ Stripe Connect setup
+2. ✅ Checkout flow
+3. ✅ Webhooks
+4. ✅ Gestão de assinaturas
+
+### Fase 5: Polish & Deploy (Semana 6)
+1. ✅ Testes E2E
+2. ✅ Otimizações
+3. ✅ Deploy Vercel
+4. ✅ Monitoramento
+
+## 🛠️ Comandos Úteis
+
+```bash
+# Desenvolvimento
+npm run dev
+
+# Build
+npm run build
+
+# Testes
+npm run test
+npm run test:e2e
+
+# Gerar types do Supabase
+npm run generate:types
+
+# Seed database
+npm run seed
+
+# Lint
+npm run lint
+```
+
+## 📝 Padrões de Código
+
+### Nomenclatura
+- **Componentes**: PascalCase (ex: `CanalCard.tsx`)
+- **Hooks**: camelCase com 'use' (ex: `useAuth.ts`)
+- **Services**: camelCase com '.service' (ex: `canal.service.ts`)
+- **Types**: PascalCase com '.types' (ex: `Canal.types.ts`)
+
+### Estrutura de Componentes
+```tsx
+// components/features/canais/canal-card.tsx
+import { Card } from '@/components/ui/card'
+import { Canal } from '@/types/canal.types'
+
+interface CanalCardProps {
+  canal: Canal
+  onSubscribe: (canalId: string) => void
+}
+
+export function CanalCard({ canal, onSubscribe }: CanalCardProps) {
+  return (
+    <Card>
+      {/* Conteúdo */}
+    </Card>
+  )
+}
+```
+
+### Organização de Imports
+```tsx
+// 1. React/Next
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+
+// 2. Bibliotecas externas
+import { format } from 'date-fns'
+
+// 3. Componentes internos
+import { Button } from '@/components/ui/button'
+import { CanalCard } from '@/components/features/canais/canal-card'
+
+// 4. Hooks e utils
+import { useAuth } from '@/hooks/use-auth'
+import { formatCurrency } from '@/lib/utils'
+
+// 5. Types
+import type { Canal } from '@/types/canal.types'
+```
