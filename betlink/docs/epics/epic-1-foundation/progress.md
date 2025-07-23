@@ -3,11 +3,12 @@
 ## 📊 Overall Status
 - **EPIC**: 1 - Foundation and Authentication
 - **Start Date**: 2025-07-21
-- **Target End Date**: 2025-07-24 (3 days)
+- **Target End Date**: 2025-07-25 (Revised - 4 days)
 - **Current Status**: 🟦 In Progress
-- **Progress**: 3/7 features completed (43%)
-- **Total Estimated Time**: 12-16 hours
-- **Actual Time**: ~9 hours (Features 1.1, 1.2 & 1.3 complete)
+- **Progress**: 4/9 features completed (44%) 🔄 REVISED
+- **Total Estimated Time**: 16-20 hours (revised)
+- **Actual Time**: ~12 hours (Features 1.1-1.4 complete)
+- **🔄 REVISION**: Scope adjusted for better incremental delivery (July 23, 2025)
 
 ## 🎯 Features Checklist
 
@@ -28,7 +29,7 @@
   - **Progress File**: `docs/features/progress/feature-1-2-progress.md` ✅
   - **Notes**: ✅ Live database connection, 4 verified users, Cursor MCP workflow established
 
-### Phase 2: Navigation & Basic Auth 🟦 IN PROGRESS
+### Phase 2: Navigation & Basic Auth ✅ COMPLETE
 - [✅] **Feature 1.3: Role-Based Placeholder Pages**
   - **Status**: ✅ Complete (July 22, 2025)
   - **Estimated**: 2 hours
@@ -37,13 +38,13 @@
   - **Progress File**: `docs/features/progress/feature-1-3-progress.md` ✅
   - **Notes**: ✅ Created role-based pages, navigation system, and proper folder structure
 
-- [ ] **Feature 1.4: Basic Authentication**
-  - **Status**: ⏳ Pending
+- [✅] **Feature 1.4: Basic Authentication**
+  - **Status**: ✅ Complete (July 22-23, 2025)
   - **Estimated**: 3 hours
-  - **Actual**: TBD
-  - **Dependencies**: Feature 1.3 complete
-  - **Progress File**: TBD
-  - **Notes**: -
+  - **Actual**: ~3 hours
+  - **Dependencies**: ✅ Feature 1.3 complete
+  - **Progress File**: `docs/features/progress/feature-1-4-progress.md` ✅
+  - **Notes**: ✅ Full auth system with rate limiting, role-based redirects, and secure password handling
 
 ### Phase 3: Security & Advanced Auth ⏳ PENDING
 - [ ] **Feature 1.5: Middleware + RLS for Users**
@@ -52,25 +53,60 @@
   - **Actual**: TBD
   - **Dependencies**: Feature 1.4 complete
   - **Progress File**: TBD
-  - **Notes**: -
+  - **Notes**: Will include navigation bar with avatar and logout functionality
 
-- [ ] **Feature 1.6: Expand Schema + Channel Requests**
+- [ ] **Feature 1.6: Channel Request Form** 🔄 **REVISED**
   - **Status**: ⏳ Pending
   - **Estimated**: 2 hours
   - **Actual**: TBD
   - **Dependencies**: Feature 1.5 complete
   - **Progress File**: TBD
-  - **Notes**: -
+  - **Notes**: UI only - approval workflow moved to Feature 1.9
 
-- [ ] **Feature 1.7: Complete Auth Flow**
+- [ ] **Feature 1.7: Client Registration** 🔄 **REVISED**
   - **Status**: ⏳ Pending
-  - **Estimated**: 3 hours
+  - **Estimated**: 2 hours
+  - **Actual**: TBD
+  - **Dependencies**: Feature 1.5 complete
+  - **Progress File**: TBD
+  - **Notes**: Basic client signup flow only
+
+- [ ] **Feature 1.8: Password Reset** 🆕 **NEW**
+  - **Status**: ⏳ Pending
+  - **Estimated**: 2 hours
+  - **Actual**: TBD
+  - **Dependencies**: Feature 1.7 complete
+  - **Progress File**: TBD
+  - **Notes**: Mock email sending (console log)
+
+- [ ] **Feature 1.9: Admin Request View** 🆕 **NEW**
+  - **Status**: ⏳ Pending
+  - **Estimated**: 2 hours
   - **Actual**: TBD
   - **Dependencies**: Feature 1.6 complete
   - **Progress File**: TBD
-  - **Notes**: -
+  - **Notes**: Read-only view of channel requests for admin
 
 ## 🔄 Daily Updates
+
+### 2025-07-23 - Day 3
+- **Started**: Master plan adjustments
+- **Completed**:
+  - ✅ Revised EPIC 1 scope for better incremental delivery
+  - ✅ Split Feature 1.6 and 1.7 into smaller, testable features
+  - ✅ Added new EPIC 7 for Communications & Notifications
+  - ✅ Updated progress tracking to reflect 9 features instead of 7
+- **Key Decisions**:
+  - Defer email infrastructure to EPIC 7
+  - Keep unified login approach (no separate admin login page)
+  - Move tipster onboarding with temp passwords to EPIC 4
+- **Next**: Start Feature 1.5 implementation
+
+### 2025-07-22 - Day 2  
+- **Completed**:
+  - ✅ Feature 1.3: Role-based placeholder pages
+  - ✅ Feature 1.4: Basic authentication system
+- **Time Spent**: ~6 hours
 
 ### 2025-07-21 - Day 1 (EPIC Start)
 - **Started**: EPIC 1 planning and Feature 1.1 planning
@@ -232,5 +268,5 @@
 
 ---
 
-**Last Updated**: 2025-07-21 11:45 AM  
-**Next Update**: After Feature 1.1 completion or daily standup
+**Last Updated**: 2025-07-23 (Master plan adjustments)  
+**Next Update**: After Feature 1.5 implementation begins

@@ -1,5 +1,13 @@
 # BetLink - Project Implementation Checklist
 
+## 🔄 Revision History
+- **2025-07-23**: Major revision to EPIC 1 scope for better incremental delivery
+  - Split Feature 1.6 into smaller parts
+  - Split Feature 1.7 into three separate features (1.7, 1.8, 1.9)
+  - Added EPIC 7 for Communications & Notifications
+  - Moved complex workflows to appropriate EPICs
+  - Added UI components (navigation bar, avatar) to Feature 1.5
+
 ## 📋 Status Legend
 - ⬜ **Pending**: Not started
 - 🟦 **In Progress**: Currently working
@@ -251,11 +259,13 @@
   - [ ] Implement date filters
   - [ ] Test: Dashboard loads with data
 
-- [ ] Feature 4.2: Tipster Management
+- [ ] Feature 4.2: Tipster Management 🔄 **REVISED**
   - [ ] Create /admin/tipsters route
   - [ ] Design tipsters table
   - [ ] Add create tipster modal
-  - [ ] Implement email sending
+  - [ ] Generate temporary password
+  - [ ] Mock email sending (console log)
+  - [ ] Add tipster first-login password change
   - [ ] Add status management
   - [ ] Create tipster profiles
   - [ ] Test: CRUD operations work
@@ -401,17 +411,56 @@
 
 ---
 
+## 🎯 EPIC 7: Communications & Notifications 🆕 NEW
+
+### Status: ⬜ Pending
+### Dependencies: EPIC 1, EPIC 4
+### Start Date: -
+### End Date: -
+### Progress File: `docs/epics/epic-7-communications/progress.md`
+
+#### Features Checklist:
+
+```markdown
+- [ ] Feature 7.1: Email Infrastructure
+  - [ ] Setup email service (SendGrid/AWS SES)
+  - [ ] Create email templates
+  - [ ] Implement email queue system
+  - [ ] Add unsubscribe functionality
+  - [ ] Create email preview tool
+  - [ ] Test: Send test emails
+
+- [ ] Feature 7.2: Notification System
+  - [ ] Create notifications table
+  - [ ] Implement in-app notifications
+  - [ ] Add notification preferences
+  - [ ] Create notification center UI
+  - [ ] Add real-time updates
+  - [ ] Test: Receive notifications
+
+- [ ] Feature 7.3: Advanced Session Management
+  - [ ] Implement refresh tokens
+  - [ ] Add "Remember Me" functionality
+  - [ ] Create session timeout handling
+  - [ ] Add concurrent session limits
+  - [ ] Implement device management
+  - [ ] Test: Session persistence
+```
+
+---
+
 ## 📊 Progress Tracking
 
-### Overall Progress: 4/35 Features (11% - Features 1.1-1.4 Complete)
+### Overall Progress: 4/37 Features (11% - Features 1.1-1.4 Complete)
 
 ```
-EPIC 1: 🟦 4/7 features (57% - Features 1.1-1.4 complete)
+EPIC 1: 🟦 4/9 features (44% - Features 1.1-1.4 complete) 🔄 REVISED
 EPIC 2: ⬜ 0/5 features (0%)
 EPIC 3: ⬜ 0/5 features (0%)
-EPIC 4: ⬜ 0/5 features (0%)
+EPIC 4: ⬜ 0/6 features (0%) 🔄 REVISED  
 EPIC 5: ⬜ 0/5 features (0%)
 EPIC 6: ⬜ 0/5 features (0%)
+EPIC 7: ⬜ 0/3 features (0%) 🆕 NEW
 ```
 
 **🎯 EPIC 1 follows the Incremental Visibility Principle:**
@@ -419,9 +468,11 @@ EPIC 6: ⬜ 0/5 features (0%)
 - **Feature 1.2**: Shows mock users fetched from database
 - **Feature 1.3**: Shows navigation and role-based pages
 - **Feature 1.4**: Shows working login with redirects
-- **Feature 1.5**: Shows access control and logout
-- **Feature 1.6**: Shows channel request system
-- **Feature 1.7**: Shows complete auth flows
+- **Feature 1.5**: Shows access control, navigation bar with avatar, and logout
+- **Feature 1.6**: Shows channel request form submission
+- **Feature 1.7**: Shows client registration page
+- **Feature 1.8**: Shows password reset flow
+- **Feature 1.9**: Shows admin view of channel requests
 
 ---
 
@@ -556,6 +607,7 @@ EPIC 6: ⬜ 0/5 features (0%)
 - `epic-4-admin-panel-progress.md`
 - `epic-5-payment-system-progress.md`
 - `epic-6-telegram-automation-progress.md`
+- `epic-7-communications-progress.md` 🆕
 
 ---
 
